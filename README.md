@@ -7,9 +7,7 @@ Aqui está um passo a passo detalhado:
 2. Atualizar o sistema:
    - Execute os seguintes comandos para atualizar o sistema operacional:
      ```
-     sudo su
-     sudo apt update
-     sudo apt -y upgrade
+     sudo su -c "apt update && apt -y upgrade"
      ```
 
 3. Instalar o Node.js:
@@ -19,9 +17,7 @@ Aqui está um passo a passo detalhado:
      ```
    - Instale o Node.js, npm e Chrome com o comando `apt`:
      ```
-     sudo apt install -y nodejs
-     sudo apt install -y git
-     sudo apt install -y chromium
+     sudo apt install -y nodejs && sudo apt install -y git && sudo apt install -y chromium
      ```
 
 4. Verificar a instalação do Node.js e npm:
