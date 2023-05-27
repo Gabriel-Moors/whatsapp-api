@@ -16,10 +16,11 @@ Aqui está um passo a passo detalhado:
      ```
      curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
      ```
-   - Instale o Node.js e o npm com o comando `apt`:
+   - Instale o Node.js, npm e Chrome com o comando `apt`:
      ```
      sudo apt install -y nodejs
-     sudo apt install git
+     sudo apt install -y git
+     sudo apt install -y chromium
      ```
 
 4. Verificar a instalação do Node.js e npm:
