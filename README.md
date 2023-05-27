@@ -11,13 +11,12 @@ Aqui está um passo a passo detalhado:
      ```
 
 3. Instalar o Node.js:
-
    - Instale o Node.js, npm, git e Chromium com o comando:
      ```
      curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs && sudo npm install -g npm@latest && sudo apt update && sudo apt install -y git && sudo apt update && sudo apt install -y chromium
      ```
 
-4. Verificar a instalação do Node.js e npm:
+4. Verificar a instalação do Node.js, npm, git e Chromium:
    - Verifique se o Node.js foi instalado corretamente digitando o seguinte comando:
      ```
      node --version
@@ -26,6 +25,14 @@ Aqui está um passo a passo detalhado:
      ```
      npm --version
      ```
+   - Verifique se o git foi instalado corretamente digitando o seguinte comando:
+     ```
+     git --version
+     ```
+   - Verifique se o Chromium foi instalado corretamente digitando o seguinte comando:
+     ```
+     chromium --version
+     ```  
    - Certifique-se de que ambas as versões são exibidas corretamente, o que indicará que o Node.js e o npm estão instalados com sucesso.
 
 5. Criar um diretório para o projeto:
