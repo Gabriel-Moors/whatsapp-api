@@ -92,7 +92,7 @@ const options = {
 };
 
 // Criar servidor HTTPS
-const port = 443;
+const port = 80;
 const server = https.createServer(options, app);
 
 // Iniciar o servidor HTTPS
