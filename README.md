@@ -17,7 +17,7 @@ Aqui está um passo a passo detalhado:
      ```
    - Instale o Node.js, npm e Chrome com o comando `apt`:
      ```
-     sudo apt install -y nodejs && sudo apt install -y git && sudo apt install -y chromium
+     sudo apt install -y nodejs && npm install -g npm@latest && sudo apt install -y git && sudo apt install -y chromium
      ```
 
 4. Verificar a instalação do Node.js e npm:
