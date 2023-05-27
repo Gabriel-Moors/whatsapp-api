@@ -84,7 +84,7 @@ app.use((req, res) => {
 });
 
 // Iniciar o servidor na porta 80
-const port = 80;
+const port = 443;
 app.listen(port, () => {
   console.log(`Servidor em execução na porta ${port}`);
 });
