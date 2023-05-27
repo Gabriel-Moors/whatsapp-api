@@ -47,7 +47,7 @@ Aqui está um passo a passo detalhado:
 7. Executar o servidor:
    - Execute o servidor Express com o seguinte comando:
      ```
-     node app.js
+     sudo node app.js
      ```
    - O servidor será iniciado na porta 80 e você verá a mensagem "Servidor em execução na porta 80" no console.
 
