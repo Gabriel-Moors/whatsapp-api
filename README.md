@@ -33,8 +33,7 @@ Aqui está um passo a passo detalhado:
 
 5. Criar um diretório para o projeto:
      ```
-     git clone https://github.com/Gabriel-Moors/whatsapp-api.git
-     cd whatsapp-api
+     git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api
      ```
      
 6. Instalar as dependências:
