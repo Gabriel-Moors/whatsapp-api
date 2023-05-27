@@ -17,7 +17,20 @@ app.post('/sessions', async (req, res) => {
 
   try {
     if (!sessions[sessionId]) {
-      sessions[sessionId] = await venom.create(sessionId);
+      const session = await venom.create(sessionId);
+
+      // Adicione este código para retornar a mensagem "Waiting for QRCode Scan..."
+      session.onStateChange((state) => {
+        if (state === 'QRCODE_SCANED' || state === 'QRCODE')
+          res.status(200).json({ message: 'Waiting for QRCode Scan...' });
+      });
+
+      session.onMessage((message) => {
+        // Retorne a mensagem recebida como resposta
+        res.status(200).json({ message: message.body });
+      });
+
+      sessions[sessionId] = session;
     }
 
     res.status(200).json({ message: 'Sessão criada com sucesso.' });
