@@ -7,7 +7,7 @@
     "start": "node app.js"
   },
   "dependencies": {
-    "venom-bot": "^1.20.1",
+    "venom-bot": "^3.9.1",
     "express": "^4.17.1",
     "winston": "^3.3.3"
   }
