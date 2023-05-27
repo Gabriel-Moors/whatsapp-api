@@ -9,7 +9,7 @@ Aqui está um passo a passo detalhado:
      ```
      sudo su
      sudo apt update
-     sudo apt upgrade
+     sudo apt -y upgrade
      ```
 
 3. Instalar o Node.js:
