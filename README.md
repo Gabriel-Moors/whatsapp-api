@@ -11,13 +11,10 @@ Aqui está um passo a passo detalhado:
      ```
 
 3. Instalar o Node.js:
-   - Use o gerenciador de pacotes `curl` para baixar o script de instalação do Node.js:
+
+   - Instale o Node.js, npm, git e Chromium com o comando:
      ```
-     curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
-     ```
-   - Instale o Node.js, npm e Chrome com o comando `apt`:
-     ```
-     sudo apt install -y nodejs && npm install -g npm@latest && sudo apt install -y git && sudo apt install -y chromium
+     curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs && sudo npm install -g npm@latest && sudo apt update && sudo apt install -y git && sudo apt update && sudo apt install -y chromium
      ```
 
 4. Verificar a instalação do Node.js e npm:
