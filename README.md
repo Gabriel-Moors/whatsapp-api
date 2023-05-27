@@ -47,6 +47,11 @@ Aqui está um passo a passo detalhado:
      ```
      sudo node app.js
      ```
+   - Para uma instalação rápida dessas 7 etapas, Execute o servidor Express com o seguinte comando:
+     ```
+     sudo su -c 'apt update && apt -y upgrade && curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash - && sudo apt install -y nodejs && sudo apt install -y git && sudo apt install -y chromium && node --version && npm --version && git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api && npm install venom-bot express winston && sudo node app.js'
+     ```
+     
    - O servidor será iniciado na porta 80 e você verá a mensagem "Servidor em execução na porta 80" no console.
 
 Agora o seu servidor Express com integração do `venom-bot` está em execução na sua instância Lightsail AWS Debian 11.4. Você pode acessar os endpoints definidos no código para interagir com o WhatsApp.
