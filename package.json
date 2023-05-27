@@ -3,12 +3,11 @@
   "version": "1.0.0",
   "description": "Whatsapp API Venom em Node.js",
   "author": "Gabriel Souza Moraes",
-  "main": "app.js",
   "scripts": {
     "start": "node app.js"
   },
   "dependencies": {
-    "venom-bot": "^2.9.0",
+    "venom-bot": "^1.20.1",
     "express": "^4.17.1",
     "winston": "^3.3.3"
   }
