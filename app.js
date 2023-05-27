@@ -1,6 +1,8 @@
 const venom = require('venom-bot');
 const express = require('express');
 const winston = require('winston');
+const https = require('https');
+const fs = require('fs');
 
 const app = express();
 app.use(express.json());
@@ -83,8 +85,17 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint não encontrado.' });
 });
 
-// Iniciar o servidor na porta 80
-const port = 443;
-app.listen(port, () => {
+// Configurar opções SSL
+const options = {
+  key: fs.readFileSync('/caminho/para/chave-privada.key'),
+  cert: fs.readFileSync('/caminho/para/certificado.crt')
+};
+
+// Criar servidor HTTPS
+const port = 80;
+const server = https.createServer(options, app);
+
+// Iniciar o servidor HTTPS
+server.listen(port, () => {
   console.log(`Servidor em execução na porta ${port}`);
 });
