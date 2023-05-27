@@ -10,7 +10,7 @@
   "license": "MIT",
   "dependencies": {
     "express": "^4.17.1",
-    "venom-bot": "^2.9.0",
+    "venom-bot": "^3.0.0",
     "winston": "^3.3.3",
     "https": "^1.0.0",
     "fs": "0.0.1-security"
