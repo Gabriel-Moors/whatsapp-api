@@ -7,6 +7,7 @@ Aqui está um passo a passo detalhado:
 2. Atualizar o sistema:
    - Execute os seguintes comandos para atualizar o sistema operacional:
      ```
+     sudo su
      sudo apt update
      sudo apt upgrade
      ```
