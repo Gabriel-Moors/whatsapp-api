@@ -17,20 +17,16 @@ app.post('/sessions', async (req, res) => {
 
   try {
     if (!sessions[sessionId]) {
-      const session = await venom.create(sessionId);
+      sessions[sessionId] = await venom.create(sessionId);
 
-      session.onStateChange((state) => {
-        if (state === 'QRCODE_SCANED' || state === 'QRCODE') {
-          session.getQrCode().then((qrCode) => {
-            res.status(200).json({ qrCode });
-          });
-        }
-      });
+      // Gerar o QR Code para a nova instância
+      const qrCode = await sessions[sessionId].getQrCode();
 
-      sessions[sessionId] = session;
+      // Enviar a resposta com o QR Code
+      res.status(200).json({ message: 'Sessão criada com sucesso.', qrCode });
+    } else {
+      res.status(200).json({ message: 'Sessão já existe.' });
     }
-
-    res.status(200).json({ message: 'Sessão criada com sucesso.' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Falha ao criar a sessão.' });
@@ -62,24 +58,6 @@ app.post('/sessions/:sessionId/send-message', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Falha ao enviar a mensagem.' });
-  }
-});
-
-// Endpoint para obter o QR Code de uma instância
-app.get('/sessions/:sessionId/qr-code', async (req, res) => {
-  const { sessionId } = req.params;
-  const session = sessions[sessionId];
-
-  if (!session) {
-    return res.status(404).json({ error: 'Sessão não encontrada.' });
-  }
-
-  try {
-    const qrCode = await session.getQrCode();
-    res.status(200).json({ qrCode });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Falha ao obter o QR Code.' });
   }
 });
 
