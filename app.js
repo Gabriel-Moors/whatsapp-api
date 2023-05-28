@@ -31,18 +31,6 @@ app.post('/sessions', async (req, res) => {
   }
 });
 
-// Endpoint para excluir uma instância
-app.delete('/sessions/:sessionId', (req, res) => {
-  const { sessionId } = req.params;
-
-  if (sessions[sessionId]) {
-    delete sessions[sessionId];
-    res.status(200).json({ message: 'Sessão excluída com sucesso.' });
-  } else {
-    res.status(404).json({ error: 'Sessão não encontrada.' });
-  }
-});
-
 // Configurar rota padrão
 app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint não encontrado.' });
