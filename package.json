@@ -1,8 +1,18 @@
 {
-  "name": "whatsapp-api",
+  "name": "whatsapp-venom-api",
   "version": "1.0.0",
-  "description": "WhatsApp API Venom em Node.js",
-  "author": "Gabriel Souza Moraes",
+  "description": "API do WhatsApp Venom",
+  "main": "app.js",
+  "scripts": {
+    "start": "sudo node app.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "venom",
+    "api"
+  ],
+  "author": "Gabriel Moraes",
+  "license": "MIT",
   "dependencies": {
     "express": "4.18.2",
     "venom-bot": "5.0.1",
