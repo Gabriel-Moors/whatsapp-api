@@ -7,7 +7,7 @@ const fs = require('fs');
 const { phoneNumberFormatter } = require('./helpers/formatter');
 const fileUpload = require('express-fileupload');
 const axios = require('axios');
-const port = process.env.PORT || 8000;
+const port = process.env.PORT || 80;
 
 const app = express();
 const server = http.createServer(app);
@@ -31,7 +31,7 @@ app.use(fileUpload({
 }));
 
 app.get('/', (req, res) => {
-  res.sendFile('index-multiple-account.html', {
+  res.sendFile('index.html', {
     root: __dirname
   });
 });
