@@ -187,17 +187,15 @@ io.on('connection', function(socket) {
   });
 });
 
-// Send message
+// Rota para enviar mensagem
 app.post('/send-message', async (req, res) => {
-  console.log(req);
-
   const sender = req.body.sender;
   const number = phoneNumberFormatter(req.body.number);
   const message = req.body.message;
 
   const client = sessions.find(sess => sess.id == sender)?.client;
 
-  // Make sure the sender is exists & ready
+  // Verifique se o remetente existe e está pronto
   if (!client) {
     return res.status(422).json({
       status: false,
@@ -206,11 +204,11 @@ app.post('/send-message', async (req, res) => {
   }
 
   /**
-   * Check if the number is already registered
-   * Copied from app.js
+   * Verifique se o número está registrado
+   * Copiado de app.js
    * 
-   * Please check app.js for more validations example
-   * You can add the same here!
+   * Por favor, verifique app.js para mais exemplos de validações
+   * Você pode adicionar as mesmas aqui!
    */
   const isRegisteredNumber = await client.isRegisteredUser(number);
 
@@ -231,6 +229,28 @@ app.post('/send-message', async (req, res) => {
       status: false,
       response: err
     });
+  });
+});
+
+// Rota para criar uma nova sessão
+app.post('/create-session', (req, res) => {
+  const id = req.body.id;
+  const description = req.body.description;
+
+  // Verifique se o ID e a descrição são fornecidos
+  if (!id || !description) {
+    return res.status(400).json({
+      status: false,
+      message: 'ID and description are required!'
+    });
+  }
+
+  // Crie uma nova sessão
+  createSession(id, description);
+
+  res.status(200).json({
+    status: true,
+    message: 'Session created successfully'
   });
 });
 
