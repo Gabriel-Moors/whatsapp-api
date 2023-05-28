@@ -43,7 +43,7 @@ Aqui está um passo a passo detalhado:
 6. Instalar as dependências:
    - Execute o seguinte comando para instalar as dependências:
      ```
-     npm install venom-bot@5.0.1 express@4.18.2 winston@3.9.0
+     npm install venom-bot@5.0.1 express@4.18.2 winston@3.9.0 body-parser@1.20.2
      ```
      
 7. Executar o servidor:
