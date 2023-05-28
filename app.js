@@ -21,14 +21,14 @@ app.post('/sessions', async (req, res) => {
       // Gerar o QR Code para a nova instância
       const qrCode = await sessions[sessionId].getQrCode();
 
-      // Enviar a resposta com o QR Code e uma mensagem informativa
-      res.status(200).json({ message: 'Sessão criada com sucesso.', qrCode });
+      // Enviar a resposta com o QR Code
+      return res.status(200).json({ message: 'Sessão criada com sucesso.', qrCode });
     } else {
-      res.status(200).json({ message: 'Sessão já existe.' });
+      return res.status(200).json({ message: 'Sessão já existe.' });
     }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Falha ao criar a sessão.' });
+    return res.status(500).json({ error: 'Falha ao criar a sessão.' });
   }
 });
 
@@ -38,9 +38,9 @@ app.delete('/sessions/:sessionId', (req, res) => {
 
   if (sessions[sessionId]) {
     delete sessions[sessionId];
-    res.status(200).json({ message: 'Sessão excluída com sucesso.' });
+    return res.status(200).json({ message: 'Sessão excluída com sucesso.' });
   } else {
-    res.status(404).json({ error: 'Sessão não encontrada.' });
+    return res.status(404).json({ error: 'Sessão não encontrada.' });
   }
 });
 
@@ -53,10 +53,10 @@ app.post('/sessions/:sessionId/send-message', async (req, res) => {
     const session = sessions[sessionId];
     await session.sendText(number, message);
 
-    res.status(200).json({ message: 'Mensagem enviada com sucesso.' });
+    return res.status(200).json({ message: 'Mensagem enviada com sucesso.' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Falha ao enviar a mensagem.' });
+    return res.status(500).json({ error: 'Falha ao enviar a mensagem.' });
   }
 });
 
@@ -84,15 +84,6 @@ app.use((req, res) => {
 
 // Criar servidor HTTP
 const port = 80;
-const server = app.listen(port, () => {
+app.listen(port, () => {
   console.log(`Servidor em execução na porta ${port}`);
-});
-
-// Manipular erro de porta em uso
-server.on('error', (error) => {
-  if (error.code === 'EADDRINUSE') {
-    console.error(`A porta ${port} está em uso. Por favor, escolha uma porta diferente.`);
-  } else {
-    console.error('Erro inesperado ao iniciar o servidor:', error);
-  }
 });
