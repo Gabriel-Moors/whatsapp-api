@@ -39,17 +39,10 @@ Aqui está um passo a passo detalhado:
      ```
      git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api && npm install
      ```
-     
-6. Instalar as dependências:
-   - Execute o seguinte comando para instalar as dependências:
-     ```
-     npm install --save axios@latest express@latest express-fileupload@latest express-validator@latest http@latest mime-types@latest qrcode@latest socket.io@latest whatsapp-web.js@latest puppeteer@latest
-     ```
-     
 7. Executar o servidor:
    - Execute o servidor Express com o seguinte comando:
      ```
-     sudo node app.js
+     npm start
      ```
    - Para uma instalação rápida dessas 7 etapas, Execute o servidor Express com o seguinte comando:
      ```
