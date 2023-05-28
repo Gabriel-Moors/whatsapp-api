@@ -23,6 +23,10 @@ app.get('/qr', (req, res) => {
       client.onAnyMessage((message) => {
         console.log(message);
       });
+
+      client.onQrcode((qrCode) => {
+        res.json({ qrcode: qrCode });
+      });
     })
     .catch((error) => {
       console.error('Erro ao criar o cliente Venom:', error);
