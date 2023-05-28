@@ -1,22 +1,31 @@
 {
-  "name": "whatsapp-venom-api",
+  "name": "whatsapp-api",
   "version": "1.0.0",
-  "description": "API do WhatsApp Venom",
+  "description": "Whatsapp API",
   "main": "app.js",
   "scripts": {
-    "start": "sudo node app.js"
+    "start": "sudo node app.js",
+    "start:dev": "nodemon app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
-    "whatsapp",
-    "venom",
-    "api"
+    "whatsapp-api",
+    "node.js"
   ],
   "author": "Gabriel Moraes",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "venom-bot": "^5.0.1",
-    "winston": "^3.9.0",
-    "body-parser": "^1.20.2"
+    "axios": "latest",
+    "express": "latest",
+    "express-fileupload": "latest",
+    "express-validator": "latest",
+    "http": "latest",
+    "mime-types": "latest",
+    "qrcode": "latest",
+    "socket.io": "latest",
+    "whatsapp-web.js": "latest"
+  },
+  "devDependencies": {
+    "nodemon": "latest"
   }
 }
