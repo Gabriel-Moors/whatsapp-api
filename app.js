@@ -1,39 +1,23 @@
-const express = require('express');
 const venom = require('venom-bot');
+const express = require('express');
+const bodyParser = require('body-parser');
 
 const app = express();
-const port = 80; // Porta 80
+app.use(bodyParser.json());
 
-app.get('/', (req, res) => {
-  res.json({ message: 'API do WhatsApp' });
-});
-
-app.get('/qr', (req, res) => {
-  venom
-    .create()
-    .then((client) => {
-      client.onStateChange((state) => {
-        if (state.qrcode && state.status === 'CONFLICT') {
-          res.json({ qrcode: state.qrcode });
-        } else if (state.status === 'CONNECTED') {
-          res.json({ message: 'Instância conectada com sucesso!' });
-        }
-      });
-
-      client.onAnyMessage((message) => {
-        console.log(message);
-      });
-
-      client.onQrcode((qrCode) => {
-        res.json({ qrcode: qrCode });
-      });
-    })
-    .catch((error) => {
-      console.error('Erro ao criar o cliente Venom:', error);
-      res.status(500).json({ error: 'Erro ao criar o cliente Venom' });
+venom.create().then((client) => {
+  app.post('/sendMessage', (req, res) => {
+    const { number, message } = req.body;
+    client.sendText(number, message).then((result) => {
+      res.json({ success: true, message: 'Message sent successfully' });
+    }).catch((error) => {
+      res.status(500).json({ success: false, message: 'Failed to send message', error });
     });
-});
+  });
 
-app.listen(port, () => {
-  console.log(`Servidor rodando na porta ${port}`);
+  app.listen(80, () => {
+    console.log('API running on port 80');
+  });
+}).catch((error) => {
+  console.log('Failed to create venom client', error);
 });
