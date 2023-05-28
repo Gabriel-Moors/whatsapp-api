@@ -17,10 +17,13 @@ app.post('/sessions', async (req, res) => {
 
   try {
     if (!sessions[sessionId]) {
-      sessions[sessionId] = await venom.create(sessionId);
+      const client = await venom.create(sessionId);
 
       // Gerar o QR Code para a nova instância
-      const qrCode = await sessions[sessionId].getQrCode();
+      const qrCode = await client.getQrCode();
+
+      // Armazenar a instância do Venom
+      sessions[sessionId] = client;
 
       // Enviar a resposta com o QR Code
       return res.status(200).json({ message: 'Sessão criada com sucesso.', qrCode });
