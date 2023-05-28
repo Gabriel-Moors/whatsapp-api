@@ -37,7 +37,7 @@ Aqui está um passo a passo detalhado:
 
 5. Criar um diretório para o projeto:
      ```
-     sudo su && git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api && npm install
+     git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api && npm install
      ```
      
 6. Instalar as dependências:
