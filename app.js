@@ -38,9 +38,9 @@ app.delete('/sessions/:sessionId', (req, res) => {
 
   if (sessions[sessionId]) {
     delete sessions[sessionId];
-    return res.status(200).json({ message: 'Sessão excluída com sucesso.' });
+    res.status(200).json({ message: 'Sessão excluída com sucesso.' });
   } else {
-    return res.status(404).json({ error: 'Sessão não encontrada.' });
+    res.status(404).json({ error: 'Sessão não encontrada.' });
   }
 });
 
@@ -53,10 +53,10 @@ app.post('/sessions/:sessionId/send-message', async (req, res) => {
     const session = sessions[sessionId];
     await session.sendText(number, message);
 
-    return res.status(200).json({ message: 'Mensagem enviada com sucesso.' });
+    res.status(200).json({ message: 'Mensagem enviada com sucesso.' });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: 'Falha ao enviar a mensagem.' });
+    res.status(500).json({ error: 'Falha ao enviar a mensagem.' });
   }
 });
 
