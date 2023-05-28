@@ -53,7 +53,7 @@ Aqui está um passo a passo detalhado:
      ```
    - Para uma instalação rápida dessas 7 etapas, Execute o servidor Express com o seguinte comando:
      ```
-     sudo su -c 'apt update && apt -y upgrade && curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash - && sudo apt install -y nodejs && sudo apt install -y git && sudo apt install -y chromium && node --version && npm --version && git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api && npm install venom-bot express winston && sudo node app.js'
+     sudo apt update && sudo apt upgrade -y && curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs && sudo npm install -g npm@latest && sudo apt update && sudo apt install -y git chromium && node --version && npm --version && git --version && chromium --version && git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api && sudo npm install venom-bot@5.0.1 express@4.18.2 winston@3.9.0 && sudo node app.js
      ```
      
    - O servidor será iniciado na porta 80 e você verá a mensagem "Servidor em execução na porta 80" no console.
