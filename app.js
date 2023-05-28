@@ -16,17 +16,13 @@ app.post('/sessions', async (req, res) => {
 
   try {
     if (!sessions[sessionId]) {
-      const instance = await venom.create(sessionId);
+      sessions[sessionId] = await venom.create(sessionId);
 
-      instance.onStateChange((state) => {
-        if (state === 'CONNECTED') {
-          // Enviar a resposta com o QR Code e uma mensagem de sucesso
-          const qrCode = instance.base64QrCode;
-          res.status(200).json({ message: 'Sessão criada com sucesso.', qrCode });
-        }
-      });
+      // Gerar o QR Code para a nova instância
+      const qrCode = await sessions[sessionId].getQrCode();
 
-      sessions[sessionId] = instance;
+      // Enviar a resposta com o QR Code
+      res.status(200).json({ message: 'Sessão criada com sucesso.', qrCode });
     } else {
       res.status(200).json({ message: 'Sessão já existe.' });
     }
@@ -41,7 +37,6 @@ app.delete('/sessions/:sessionId', (req, res) => {
   const { sessionId } = req.params;
 
   if (sessions[sessionId]) {
-    sessions[sessionId].close();
     delete sessions[sessionId];
     res.status(200).json({ message: 'Sessão excluída com sucesso.' });
   } else {
