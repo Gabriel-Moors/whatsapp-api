@@ -7,8 +7,7 @@ const fs = require('fs');
 const { phoneNumberFormatter } = require('./helpers/formatter');
 const fileUpload = require('express-fileupload');
 const axios = require('axios');
-
-const port = process.env.PORT || 80;
+const port = process.env.PORT || 8000;
 
 const app = express();
 const server = http.createServer(app);
@@ -20,19 +19,19 @@ app.use(express.urlencoded({
 }));
 
 /**
- * COM BASE EM MUITAS PERGUNTAS
- * Na verdade, mencionado nos tutoriais
- *
- * Os dois middlewares acima lidam apenas com json e urlencode (x-www-form-urlencoded)
- * Portanto, precisamos adicionar um middleware extra para lidar com form-data
- * Aqui podemos usar o express-fileupload
+ * BASED ON MANY QUESTIONS
+ * Actually ready mentioned on the tutorials
+ * 
+ * The two middlewares above only handle for data json & urlencode (x-www-form-urlencoded)
+ * So, we need to add extra middleware to handle form-data
+ * Here we can use express-fileupload
  */
 app.use(fileUpload({
   debug: false
 }));
 
 app.get('/', (req, res) => {
-  res.sendFile('index.html', {
+  res.sendFile('index-multiple-account.html', {
     root: __dirname
   });
 });
@@ -40,20 +39,20 @@ app.get('/', (req, res) => {
 const sessions = [];
 const SESSIONS_FILE = './whatsapp-sessions.json';
 
-const criarArquivoDeSessoesSeNaoExistir = function() {
+const createSessionsFileIfNotExists = function() {
   if (!fs.existsSync(SESSIONS_FILE)) {
     try {
       fs.writeFileSync(SESSIONS_FILE, JSON.stringify([]));
-      console.log('Arquivo de sessões criado com sucesso.');
-    } catch (err) {
-      console.log('Falha ao criar o arquivo de sessões: ', err);
+      console.log('Sessions file created successfully.');
+    } catch(err) {
+      console.log('Failed to create sessions file: ', err);
     }
   }
 }
 
-criarArquivoDeSessoesSeNaoExistir();
+createSessionsFileIfNotExists();
 
-const definirArquivoDeSessoes = function(sessions) {
+const setSessionsFile = function(sessions) {
   fs.writeFile(SESSIONS_FILE, JSON.stringify(sessions), function(err) {
     if (err) {
       console.log(err);
@@ -61,12 +60,12 @@ const definirArquivoDeSessoes = function(sessions) {
   });
 }
 
-const obterArquivoDeSessoes = function() {
+const getSessionsFile = function() {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
 }
 
-const criarSessao = function(id, descricao) {
-  console.log('Criando sessão: ' + id);
+const createSession = function(id, description) {
+  console.log('Creating session: ' + id);
   const client = new Client({
     restartOnAuthFail: true,
     puppeteer: {
@@ -78,7 +77,7 @@ const criarSessao = function(id, descricao) {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--single-process', // <- este não funciona no Windows
+        '--single-process', // <- this one doesn't works in Windows
         '--disable-gpu'
       ],
     },
@@ -90,138 +89,139 @@ const criarSessao = function(id, descricao) {
   client.initialize();
 
   client.on('qr', (qr) => {
-    console.log('QR RECEBIDO', qr);
+    console.log('QR RECEIVED', qr);
     qrcode.toDataURL(qr, (err, url) => {
       io.emit('qr', { id: id, src: url });
-      io.emit('message', { id: id, text: 'QR Code recebido, faça a leitura, por favor!' });
+      io.emit('message', { id: id, text: 'QR Code received, scan please!' });
     });
   });
 
   client.on('ready', () => {
     io.emit('ready', { id: id });
-    io.emit('message', { id: id, text: 'WhatsApp está pronto!' });
+    io.emit('message', { id: id, text: 'Whatsapp is ready!' });
 
-    const sessoesSalvas = obterArquivoDeSessoes();
-    const indiceSessao = sessoesSalvas.findIndex(sess => sess.id == id);
-    sessoesSalvas[indiceSessao].ready = true;
-    definirArquivoDeSessoes(sessoesSalvas);
+    const savedSessions = getSessionsFile();
+    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
+    savedSessions[sessionIndex].ready = true;
+    setSessionsFile(savedSessions);
   });
 
   client.on('authenticated', () => {
     io.emit('authenticated', { id: id });
-    io.emit('message', { id: id, text: 'WhatsApp está autenticado!' });
+    io.emit('message', { id: id, text: 'Whatsapp is authenticated!' });
   });
 
   client.on('auth_failure', function() {
-    io.emit('message', { id: id, text: 'Falha na autenticação, reiniciando...' });
+    io.emit('message', { id: id, text: 'Auth failure, restarting...' });
   });
 
   client.on('disconnected', (reason) => {
-    io.emit('message', { id: id, text: 'WhatsApp está desconectado!' });
+    io.emit('message', { id: id, text: 'Whatsapp is disconnected!' });
     client.destroy();
     client.initialize();
 
-    // Remover do arquivo de sessões
-    const sessoesSalvas = obterArquivoDeSessoes();
-    const indiceSessao = sessoesSalvas.findIndex(sess => sess.id == id);
-    sessoesSalvas.splice(indiceSessao, 1);
-    definirArquivoDeSessoes(sessoesSalvas);
+    // Menghapus pada file sessions
+    const savedSessions = getSessionsFile();
+    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
+    savedSessions.splice(sessionIndex, 1);
+    setSessionsFile(savedSessions);
 
     io.emit('remove-session', id);
   });
 
-  // Adicionar cliente às sessões
+  // Tambahkan client ke sessions
   sessions.push({
     id: id,
-    descricao: descricao,
-    cliente: client
+    description: description,
+    client: client
   });
 
-  // Adicionar sessão ao arquivo
-  const sessoesSalvas = obterArquivoDeSessoes();
-  const indiceSessao = sessoesSalvas.findIndex(sess => sess.id == id);
+  // Menambahkan session ke file
+  const savedSessions = getSessionsFile();
+  const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
 
-  if (indiceSessao == -1) {
-    sessoesSalvas.push({
+  if (sessionIndex == -1) {
+    savedSessions.push({
       id: id,
-      descricao: descricao,
+      description: description,
       ready: false,
     });
-    definirArquivoDeSessoes(sessoesSalvas);
+    setSessionsFile(savedSessions);
   }
 }
 
-const inicializar = function(socket) {
-  const sessoesSalvas = obterArquivoDeSessoes();
+const init = function(socket) {
+  const savedSessions = getSessionsFile();
 
-  if (sessoesSalvas.length > 0) {
+  if (savedSessions.length > 0) {
     if (socket) {
       /**
-       * Na primeira execução (por exemplo, reiniciando o servidor), nosso cliente ainda não está pronto!
-       * Ele levará algum tempo para autenticar.
-       *
-       * Para evitar confusão com o status 'ready', definimos como FALSO para essa condição
+       * At the first time of running (e.g. restarting the server), our client is not ready yet!
+       * It will need several time to authenticating.
+       * 
+       * So to make people not confused for the 'ready' status
+       * We need to make it as FALSE for this condition
        */
-      sessoesSalvas.forEach((e, i, arr) => {
+      savedSessions.forEach((e, i, arr) => {
         arr[i].ready = false;
       });
 
-      socket.emit('init', sessoesSalvas);
+      socket.emit('init', savedSessions);
     } else {
-      sessoesSalvas.forEach(sess => {
-        criarSessao(sess.id, sess.descricao);
+      savedSessions.forEach(sess => {
+        createSession(sess.id, sess.description);
       });
     }
   }
 }
 
-inicializar();
+init();
 
 // Socket IO
 io.on('connection', function(socket) {
-  inicializar(socket);
+  init(socket);
 
   socket.on('create-session', function(data) {
-    console.log('Criar sessão: ' + data.id);
-    criarSessao(data.id, data.descricao);
+    console.log('Create session: ' + data.id);
+    createSession(data.id, data.description);
   });
 });
 
-// Enviar mensagem
+// Send message
 app.post('/send-message', async (req, res) => {
   console.log(req);
 
-  const remetente = req.body.remetente;
-  const numero = phoneNumberFormatter(req.body.numero);
-  const mensagem = req.body.mensagem;
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const message = req.body.message;
 
-  const cliente = sessions.find(sess => sess.id == remetente)?.cliente;
+  const client = sessions.find(sess => sess.id == sender)?.client;
 
-  // Certificar-se de que o remetente existe e está pronto
-  if (!cliente) {
+  // Make sure the sender is exists & ready
+  if (!client) {
     return res.status(422).json({
       status: false,
-      message: `O remetente: ${remetente} não foi encontrado!`
+      message: `The sender: ${sender} is not found!`
     })
   }
 
   /**
-   * Verificar se o número já está registrado
-   * Copiado de app.js
-   *
-   * Por favor, verifique app.js para mais exemplos de validações
-   * Você pode adicioná-las aqui também!
+   * Check if the number is already registered
+   * Copied from app.js
+   * 
+   * Please check app.js for more validations example
+   * You can add the same here!
    */
-  const numeroRegistrado = await cliente.isRegisteredUser(numero);
+  const isRegisteredNumber = await client.isRegisteredUser(number);
 
-  if (!numeroRegistrado) {
+  if (!isRegisteredNumber) {
     return res.status(422).json({
       status: false,
-      message: 'O número não está registrado'
+      message: 'The number is not registered'
     });
   }
 
-  cliente.sendMessage(numero, mensagem).then(response => {
+  client.sendMessage(number, message).then(response => {
     res.status(200).json({
       status: true,
       response: response
@@ -235,5 +235,5 @@ app.post('/send-message', async (req, res) => {
 });
 
 server.listen(port, function() {
-  console.log('Aplicativo executando em *: ' + port);
+  console.log('App running on *: ' + port);
 });
