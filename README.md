@@ -43,7 +43,7 @@ Aqui está um passo a passo detalhado:
 6. Instalar as dependências:
    - Execute o seguinte comando para instalar as dependências:
      ```
-     npm install --save axios express express-fileupload express-validator http mime-types qrcode socket.io whatsapp-web.js
+     npm install --save axios express express-fileupload express-validator http mime-types qrcode socket.io whatsapp-web.js puppeteer
      ```
      
 7. Executar o servidor:
