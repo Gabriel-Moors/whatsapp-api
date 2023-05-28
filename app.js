@@ -14,20 +14,17 @@ app.get('/qr', (req, res) => {
     .then((client) => {
       client.onStateChange((state) => {
         if (state.qrcode) {
-          // Converte o código QR em base64
-          const qrCodeBase64 = state.qrcode.replace('data:image/png;base64,', '');
-
           // Retorna o código QR como uma resposta JSON
-          res.json({ qrcode: qrCodeBase64 });
+          res.json({ qrcode: state.qrcode });
+        }
+        if (state.status === 'CONNECTED') {
+          // Instância conectada com sucesso
+          res.send('Instância conectada com sucesso!');
         }
       });
 
-      client.onReady(() => {
-        console.log('Pronto para usar');
-        client.close();
-      });
-
       client.onAnyMessage((message) => {
+        // Manipula todas as mensagens recebidas
         console.log(message);
       });
     })
