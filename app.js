@@ -32,7 +32,7 @@ app.use(fileUpload({
 }));
 
 app.get('/', (req, res) => {
-  res.sendFile('index-multiple-account.html', {
+  res.sendFile('index.html', {
     root: __dirname
   });
 });
