@@ -1,5 +1,4 @@
 const venom = require('venom-bot');
-const http = require('http');
 const express = require('express');
 const app = express();
 app.use(express.json());
@@ -32,14 +31,25 @@ app.post('/sessions', async (req, res) => {
   }
 });
 
+// Endpoint para excluir uma instância
+app.delete('/sessions/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+
+  if (sessions[sessionId]) {
+    delete sessions[sessionId];
+    res.status(200).json({ message: 'Sessão excluída com sucesso.' });
+  } else {
+    res.status(404).json({ error: 'Sessão não encontrada.' });
+  }
+});
+
 // Configurar rota padrão
 app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint não encontrado.' });
 });
 
 // Criar servidor HTTP
-const server = http.createServer(app);
 const port = 80;
-server.listen(port, () => {
+app.listen(port, () => {
   console.log(`Servidor em execução na porta ${port}`);
 });
