@@ -37,13 +37,13 @@ Aqui está um passo a passo detalhado:
 
 5. Criar um diretório para o projeto:
      ```
-     git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api && sudo su
+     sudo su && git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api && npm install
      ```
      
 6. Instalar as dependências:
    - Execute o seguinte comando para instalar as dependências:
      ```
-     npm install --save axios express express-fileupload express-validator http mime-types qrcode socket.io whatsapp-web.js puppeteer
+     npm install --save axios@latest express@latest express-fileupload@latest express-validator@latest http@latest mime-types@latest qrcode@latest socket.io@latest whatsapp-web.js@latest puppeteer@latest
      ```
      
 7. Executar o servidor:
