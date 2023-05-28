@@ -16,10 +16,11 @@ app.post('/sessions', async (req, res) => {
 
   try {
     if (!sessions[sessionId]) {
-      sessions[sessionId] = await venom.create(sessionId);
+      const session = await venom.create(sessionId);
+      sessions[sessionId] = session;
 
       // Gerar o QR Code para a nova instância
-      const qrCode = await sessions[sessionId].getQrCode();
+      const qrCode = await session.getQrCode();
 
       // Enviar a resposta com o QR Code
       return res.status(200).json({ message: 'Sessão criada com sucesso.', qrCode });
@@ -38,9 +39,9 @@ app.delete('/sessions/:sessionId', (req, res) => {
 
   if (sessions[sessionId]) {
     delete sessions[sessionId];
-    res.status(200).json({ message: 'Sessão excluída com sucesso.' });
+    return res.status(200).json({ message: 'Sessão excluída com sucesso.' });
   } else {
-    res.status(404).json({ error: 'Sessão não encontrada.' });
+    return res.status(404).json({ error: 'Sessão não encontrada.' });
   }
 });
 
@@ -53,10 +54,10 @@ app.post('/sessions/:sessionId/send-message', async (req, res) => {
     const session = sessions[sessionId];
     await session.sendText(number, message);
 
-    res.status(200).json({ message: 'Mensagem enviada com sucesso.' });
+    return res.status(200).json({ message: 'Mensagem enviada com sucesso.' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Falha ao enviar a mensagem.' });
+    return res.status(500).json({ error: 'Falha ao enviar a mensagem.' });
   }
 });
 
@@ -79,7 +80,7 @@ app.use((req, res, next) => {
 
 // Configurar rota padrão
 app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint não encontrado.' });
+  return res.status(404).json({ error: 'Endpoint não encontrado.' });
 });
 
 // Criar servidor HTTP
