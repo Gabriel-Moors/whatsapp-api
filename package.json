@@ -1,10 +1,10 @@
 {
   "name": "whatsapp-api",
   "version": "1.0.0",
-  "description": "Whatsapp API",
+  "description": "Whatsapp api by Ngekoding",
   "main": "app.js",
   "scripts": {
-    "start": "sudo node app.js",
+    "start": "node app.js",
     "start:dev": "nodemon app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -12,20 +12,20 @@
     "whatsapp-api",
     "node.js"
   ],
-  "author": "Gabriel Moraes",
+  "author": "Nur Muhammad",
   "license": "MIT",
   "dependencies": {
-    "axios": "latest",
-    "express": "latest",
-    "express-fileupload": "latest",
-    "express-validator": "latest",
-    "http": "latest",
-    "mime-types": "latest",
-    "qrcode": "latest",
-    "socket.io": "latest",
+    "axios": "^0.20.0",
+    "express": "^4.17.1",
+    "express-fileupload": "^1.2.0",
+    "express-validator": "^6.9.2",
+    "http": "0.0.1-security",
+    "mime-types": "^2.1.32",
+    "qrcode": "^1.4.4",
+    "socket.io": "2.3.0",
     "whatsapp-web.js": "latest"
   },
   "devDependencies": {
-    "nodemon": "latest"
+    "nodemon": "^2.0.7"
   }
 }
