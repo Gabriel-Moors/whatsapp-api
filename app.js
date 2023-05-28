@@ -187,15 +187,17 @@ io.on('connection', function(socket) {
   });
 });
 
-// Rota para enviar mensagem
+// Send message
 app.post('/send-message', async (req, res) => {
+  console.log(req);
+
   const sender = req.body.sender;
   const number = phoneNumberFormatter(req.body.number);
   const message = req.body.message;
 
   const client = sessions.find(sess => sess.id == sender)?.client;
 
-  // Verifique se o remetente existe e está pronto
+  // Make sure the sender is exists & ready
   if (!client) {
     return res.status(422).json({
       status: false,
@@ -204,11 +206,11 @@ app.post('/send-message', async (req, res) => {
   }
 
   /**
-   * Verifique se o número está registrado
-   * Copiado de app.js
+   * Check if the number is already registered
+   * Copied from app.js
    * 
-   * Por favor, verifique app.js para mais exemplos de validações
-   * Você pode adicionar as mesmas aqui!
+   * Please check app.js for more validations example
+   * You can add the same here!
    */
   const isRegisteredNumber = await client.isRegisteredUser(number);
 
@@ -232,25 +234,29 @@ app.post('/send-message', async (req, res) => {
   });
 });
 
-// Rota para criar uma nova sessão
-app.post('/create-session', (req, res) => {
-  const id = req.body.id;
-  const description = req.body.description;
+// Get QR code for session
+app.get('/qr/:sessionId', (req, res) => {
+  const sessionId = req.params.sessionId;
+  const session = sessions.find(sess => sess.id == sessionId);
 
-  // Verifique se o ID e a descrição são fornecidos
-  if (!id || !description) {
-    return res.status(400).json({
+  if (!session) {
+    return res.status(404).json({
       status: false,
-      message: 'ID and description are required!'
+      message: 'Session not found'
     });
   }
 
-  // Crie uma nova sessão
-  createSession(id, description);
+  const qrCodePath = `./qr/${sessionId}.png`;
 
-  res.status(200).json({
-    status: true,
-    message: 'Session created successfully'
+  qrcode.toFile(qrCodePath, session.client.qrCode, { type: 'png' }, (err) => {
+    if (err) {
+      return res.status(500).json({
+        status: false,
+        message: 'Failed to generate QR code'
+      });
+    }
+
+    return res.sendFile(qrCodePath, { root: __dirname });
   });
 });
 
