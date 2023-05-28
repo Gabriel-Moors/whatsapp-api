@@ -2,34 +2,49 @@ const express = require('express');
 const venom = require('venom-bot');
 
 const app = express();
-const PORT = 80;
+const port = 80; // Alterado para a porta 80
 
-// Rota para obter o QR code para fazer login no WhatsApp
-app.get('/login', (req, res) => {
+// Configuração básica do servidor express
+app.get('/', (req, res) => {
+  res.send('API do WhatsApp');
+});
+
+// Endpoint para gerar o código QR
+app.get('/qr', (req, res) => {
   venom
     .create()
     .then((client) => {
       client.onStateChange((state) => {
-        if (state === 'CONFLICT' || state === 'DISCONNECTED') {
-          client.useHere();
+        // Verifica se o estado é 'CONFLICT' ou 'UNLAUNCHED'
+        if (state === venom.SocketState.CONFLICT || state === venom.SocketState.UNLAUNCHED) {
+          res.status(500).send('Erro ao gerar o código QR');
         }
       });
 
-      client.onQRCode((qrCode) => {
-        // Enviar o QR code como resposta da API
-        res.send(qrCode);
+      client.onQrCode((qrCode) => {
+        // Retorna o código QR como uma imagem base64
+        const qrCodeImage = `<img src="data:image/png;base64, ${qrCode}" alt="QR Code">`;
+        res.send(qrCodeImage);
       });
 
       client.onReady(() => {
-        // O login foi bem-sucedido
-        res.send('Login efetuado com sucesso!');
+        // A instância do WhatsApp Web está pronta para uso
+        console.log('Pronto para usar');
+        client.close(); // Fecha o cliente após obter o código QR
+      });
+
+      client.onAnyMessage((message) => {
+        // Manipula todas as mensagens recebidas
+        console.log(message);
       });
     })
     .catch((error) => {
-      res.status(500).send('Erro ao fazer login no WhatsApp: ' + error);
+      console.error('Erro ao criar o cliente Venom:', error);
+      res.status(500).send('Erro ao criar o cliente Venom');
     });
 });
 
-app.listen(PORT, () => {
-  console.log('API rodando em http://localhost:' + PORT);
+// Inicia o servidor
+app.listen(port, () => {
+  console.log(`Servidor rodando em http://localhost:${port}`);
 });
