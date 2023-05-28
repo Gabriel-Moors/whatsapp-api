@@ -21,7 +21,7 @@ app.post('/sessions', async (req, res) => {
       // Gerar o QR Code para a nova instância
       const qrCode = await sessions[sessionId].getQrCode();
 
-      // Enviar a resposta com o QR Code
+      // Enviar a resposta com o QR Code e uma mensagem informativa
       res.status(200).json({ message: 'Sessão criada com sucesso.', qrCode });
     } else {
       res.status(200).json({ message: 'Sessão já existe.' });
