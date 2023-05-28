@@ -50,5 +50,5 @@ app.use((req, res) => {
 });
 
 app.listen(80, () => {
-  console.log('API em execução na porta 3000');
+  console.log('API em execução na porta 80');
 });
