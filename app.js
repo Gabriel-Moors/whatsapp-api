@@ -16,20 +16,19 @@ app.post('/sessions', async (req, res) => {
 
   try {
     if (!sessions[sessionId]) {
-      const session = await venom.create(sessionId);
-      sessions[sessionId] = session;
+      sessions[sessionId] = await venom.create(sessionId);
 
       // Gerar o QR Code para a nova instância
-      const qrCode = await session.getQrCode();
+      const qrCode = await sessions[sessionId].getQrCode();
 
-      // Enviar a resposta com o QR Code
-      return res.status(200).json({ message: 'Sessão criada com sucesso.', qrCode });
+      // Enviar a resposta com o QR Code e uma mensagem de sucesso
+      res.status(200).json({ message: 'Sessão criada com sucesso.', qrCode });
     } else {
-      return res.status(200).json({ message: 'Sessão já existe.' });
+      res.status(200).json({ message: 'Sessão já existe.' });
     }
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: 'Falha ao criar a sessão.' });
+    res.status(500).json({ error: 'Falha ao criar a sessão.' });
   }
 });
 
@@ -39,9 +38,9 @@ app.delete('/sessions/:sessionId', (req, res) => {
 
   if (sessions[sessionId]) {
     delete sessions[sessionId];
-    return res.status(200).json({ message: 'Sessão excluída com sucesso.' });
+    res.status(200).json({ message: 'Sessão excluída com sucesso.' });
   } else {
-    return res.status(404).json({ error: 'Sessão não encontrada.' });
+    res.status(404).json({ error: 'Sessão não encontrada.' });
   }
 });
 
@@ -54,10 +53,10 @@ app.post('/sessions/:sessionId/send-message', async (req, res) => {
     const session = sessions[sessionId];
     await session.sendText(number, message);
 
-    return res.status(200).json({ message: 'Mensagem enviada com sucesso.' });
+    res.status(200).json({ message: 'Mensagem enviada com sucesso.' });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: 'Falha ao enviar a mensagem.' });
+    res.status(500).json({ error: 'Falha ao enviar a mensagem.' });
   }
 });
 
@@ -80,7 +79,7 @@ app.use((req, res, next) => {
 
 // Configurar rota padrão
 app.use((req, res) => {
-  return res.status(404).json({ error: 'Endpoint não encontrado.' });
+  res.status(404).json({ error: 'Endpoint não encontrado.' });
 });
 
 // Criar servidor HTTP
