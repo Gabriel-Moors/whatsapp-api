@@ -13,11 +13,10 @@ app.get('/qr', (req, res) => {
     .create()
     .then((client) => {
       client.onStateChange((state) => {
-        if (state.qrcode) {
+        if (state.qrcode && state.status === 'CONFLICT') {
           // Retorna o código QR como uma resposta JSON
           res.json({ qrcode: state.qrcode });
-        }
-        if (state.status === 'CONNECTED') {
+        } else if (state.status === 'CONNECTED') {
           // Instância conectada com sucesso
           res.send('Instância conectada com sucesso!');
         }
