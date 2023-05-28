@@ -1,56 +1,35 @@
-const venom = require('venom-bot');
 const express = require('express');
+const venom = require('venom-bot');
+
 const app = express();
-app.use(express.json());
+const PORT = 80;
 
-// Armazenará as instâncias do Venom
-const sessions = {};
-
-// Endpoint para criar uma nova instância
-app.post('/sessions', async (req, res) => {
-  const { sessionId } = req.body;
-
-  if (!sessionId) {
-    return res.status(400).json({ error: 'O ID da sessão é obrigatório.' });
-  }
-
-  try {
-    if (!sessions[sessionId]) {
-      sessions[sessionId] = await venom.create(sessionId, (base64Qr, asciiQR) => {
-        // Callback para receber o QR code
-        res.status(200).json({ message: 'Sessão criada com sucesso.', qrCode: base64Qr });
+// Rota para obter o QR code para fazer login no WhatsApp
+app.get('/login', (req, res) => {
+  venom
+    .create()
+    .then((client) => {
+      client.onStateChange((state) => {
+        if (state === 'CONFLICT' || state === 'DISCONNECTED') {
+          client.useHere();
+        }
       });
 
-      // Aguardar a geração do QR code antes de retornar a resposta
-      await sessions[sessionId].waitForQrCode();
-    } else {
-      res.status(200).json({ message: 'Sessão já existe.' });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Falha ao criar a sessão.' });
-  }
+      client.onQRCode((qrCode) => {
+        // Enviar o QR code como resposta da API
+        res.send(qrCode);
+      });
+
+      client.onReady(() => {
+        // O login foi bem-sucedido
+        res.send('Login efetuado com sucesso!');
+      });
+    })
+    .catch((error) => {
+      res.status(500).send('Erro ao fazer login no WhatsApp: ' + error);
+    });
 });
 
-// Endpoint para excluir uma instância
-app.delete('/sessions/:sessionId', (req, res) => {
-  const { sessionId } = req.params;
-
-  if (sessions[sessionId]) {
-    delete sessions[sessionId];
-    res.status(200).json({ message: 'Sessão excluída com sucesso.' });
-  } else {
-    res.status(404).json({ error: 'Sessão não encontrada.' });
-  }
-});
-
-// Configurar rota padrão
-app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint não encontrado.' });
-});
-
-// Criar servidor HTTP
-const port = 80;
-app.listen(port, () => {
-  console.log(`Servidor em execução na porta ${port}`);
+app.listen(PORT, () => {
+  console.log('API rodando em http://localhost:' + PORT);
 });
