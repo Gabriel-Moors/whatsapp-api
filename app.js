@@ -28,6 +28,12 @@ app.get('/', (req, res) => {
   });
 });
 
+// Rota para obter a lista de sessões existentes
+app.get('/sessions', (req, res) => {
+  const savedSessions = getSessionsFile();
+  res.json(savedSessions);
+});
+
 const sessions = [];
 const SESSIONS_FILE = './whatsapp-sessions.json';
 
@@ -173,7 +179,7 @@ io.on('connection', function(socket) {
   });
 });
 
-// Rota de Criação de Sessão
+// Rota para criar uma sessão
 app.post('/create-session', (req, res) => {
   const { id, description, webhookUrl } = req.body;
 
@@ -192,7 +198,29 @@ app.post('/create-session', (req, res) => {
   });
 });
 
-// Rota para deletar uma sessão específica
+// Rota para obter o QR code de uma sessão
+app.get('/qr-code/:sessionId', (req, res) => {
+  const sessionId = req.params.sessionId;
+  const session = sessions.find(sess => sess.id === sessionId);
+
+  if (!session) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada.'
+    });
+  }
+
+  const client = session.client;
+
+  client.on('qr', (qr) => {
+    res.json({
+      status: true,
+      qr: qr
+    });
+  });
+});
+
+// Rota para deletar uma sessão
 app.delete('/delete-session/:sessionId', (req, res) => {
   const sessionId = req.params.sessionId;
   const sessionIndex = sessions.findIndex(sess => sess.id === sessionId);
@@ -220,8 +248,7 @@ app.delete('/delete-session/:sessionId', (req, res) => {
   });
 });
 
-
-// Rota de Envio de Mensagem de Texto
+// Rota para enviar uma mesagem de texto
 app.post('/send-message', async (req, res) => {
   console.log(req);
 
@@ -256,28 +283,6 @@ app.post('/send-message', async (req, res) => {
     res.status(500).json({
       status: false,
       response: err
-    });
-  });
-});
-
-// Rota para obter o QR code de uma sessão específica
-app.get('/qr-code/:sessionId', (req, res) => {
-  const sessionId = req.params.sessionId;
-  const session = sessions.find(sess => sess.id === sessionId);
-
-  if (!session) {
-    return res.status(404).json({
-      status: false,
-      message: 'Sessão não encontrada.'
-    });
-  }
-
-  const client = session.client;
-
-  client.on('qr', (qr) => {
-    res.json({
-      status: true,
-      qr: qr
     });
   });
 });
