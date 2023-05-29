@@ -1,6 +1,5 @@
 const { Client, MessageMedia, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
-const { body, validationResult } = require('express-validator');
 const socketIO = require('socket.io');
 const qrcode = require('qrcode');
 const http = require('http');
@@ -8,9 +7,7 @@ const fs = require('fs');
 const { phoneNumberFormatter } = require('./helpers/formatter');
 const fileUpload = require('express-fileupload');
 const axios = require('axios');
-const mime = require('mime-types');
-
-const port = process.env.PORT || 80;
+const port = process.env.PORT || 8000;
 
 const app = express();
 const server = http.createServer(app);
@@ -22,11 +19,12 @@ app.use(express.urlencoded({
 }));
 
 /**
- * BASEADO EM MUITAS PERGUNTAS
- * Como mencionado nos tutoriais
- * 
- * Muitas pessoas ficam confusas com o aviso de envio de arquivos
- * Então, estamos apenas desabilitando o modo de depuração para simplificar.
+ * BASEADO EM VÁRIAS PERGUNTAS
+ * Mencionado nos tutoriais disponíveis
+ *
+ * Os dois middlewares acima lidam apenas com dados JSON e urlencode (x-www-form-urlencoded)
+ * Portanto, precisamos adicionar um middleware extra para lidar com form-data
+ * Aqui podemos usar o express-fileupload
  */
 app.use(fileUpload({
   debug: false
@@ -38,155 +36,188 @@ app.get('/', (req, res) => {
   });
 });
 
-const client = new Client({
-  restartOnAuthFail: true,
-  puppeteer: {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process', // <- este não funciona no Windows
-      '--disable-gpu'
-    ],
-  },
-  authStrategy: new LocalAuth()
-});
+const sessions = [];
+const SESSIONS_FILE = './whatsapp-sessions.json';
 
-client.on('message', msg => {
-  if (msg.body == '!ping') {
-    msg.reply('pong');
-  } else if (msg.body == 'bom dia') {
-    msg.reply('bom dia');
-  } else if (msg.body == '!grupos') {
-    client.getChats().then(chats => {
-      const grupos = chats.filter(chat => chat.isGroup);
-
-      if (grupos.length == 0) {
-        msg.reply('Você ainda não tem nenhum grupo.');
-      } else {
-        let mensagemResposta = '*SEUS GRUPOS*\n\n';
-        grupos.forEach((grupo, i) => {
-          mensagemResposta += `ID: ${grupo.id._serialized}\nNome: ${grupo.name}\n\n`;
-        });
-        mensagemResposta += '_Você pode usar o ID do grupo para enviar uma mensagem para o grupo._'
-        msg.reply(mensagemResposta);
-      }
-    });
+const createSessionsFileIfNotExists = function() {
+  if (!fs.existsSync(SESSIONS_FILE)) {
+    try {
+      fs.writeFileSync(SESSIONS_FILE, JSON.stringify([]));
+      console.log('Sessão criada com sucesso.');
+    } catch(err) {
+      console.log('Falha ao criar sessão! ', err);
+    }
   }
+}
 
-  // OBSERVAÇÃO!
-  // DESCOMENTE O TRECHO ABAIXO SE DESEJAR SALVAR OS ARQUIVOS DE MÍDIA DAS MENSAGENS
-  // Baixando a mídia
-  // if (msg.hasMedia) {
-  //   msg.downloadMedia().then(media => {
-  //     // Para melhor entendimento
-  //     // Por favor, verifique o console para ver os dados que estamos recebendo
-  //     console.log(media);
+createSessionsFileIfNotExists();
 
-  //     if (media) {
-  //       // Pasta para armazenar: altere como desejar!
-  //       // Crie se não existir
-  //       const pastaMídia = './mídias-baixadas/';
+const setSessionsFile = function(sessions) {
+  fs.writeFile(SESSIONS_FILE, JSON.stringify(sessions), function(err) {
+    if (err) {
+      console.log(err);
+    }
+  });
+}
 
-  //       if (!fs.existsSync(pastaMídia)) {
-  //         fs.mkdirSync(pastaMídia);
-  //       }
+const getSessionsFile = function() {
+  return JSON.parse(fs.readFileSync(SESSIONS_FILE));
+}
 
-  //       // Obtenha a extensão do arquivo pelo tipo MIME
-  //       const extensão = mime.extension(media.mimetype);
-        
-  //       // Nome do arquivo: altere como desejar!
-  //       // Usarei o horário como exemplo
-  //       // Por que não usar media.filename? Porque o valor não é garantido que exista
-  //       const nomeArquivo = new Date().getTime();
+const createSession = function(id, description) {
+  console.log('Criando sessão: ' + id);
+  const client = new Client({
+    restartOnAuthFail: true,
+    puppeteer: {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process', // <- este não funciona no Windows
+        '--disable-gpu'
+      ],
+    },
+    authStrategy: new LocalAuth({
+      clientId: id
+    })
+  });
 
-  //       const nomeCompletoArquivo = pastaMídia + nomeArquivo + '.' + extensão;
-
-  //       // Salve no arquivo
-  //       try {
-  //         fs.writeFileSync(nomeCompletoArquivo, media.data, { encoding: 'base64' }); 
-  //         console.log('Arquivo baixado com sucesso!', nomeCompletoArquivo);
-  //       } catch (err) {
-  //         console.log('Falha ao salvar o arquivo:', err);
-  //       }
-  //     }
-  //   });
-  // }
-});
-
-client.initialize();
-
-// Socket IO
-io.on('connection', function(socket) {
-  socket.emit('message', 'Conectando...');
+  client.initialize();
 
   client.on('qr', (qr) => {
     console.log('QR RECEBIDO', qr);
     qrcode.toDataURL(qr, (err, url) => {
-      socket.emit('qr', url);
-      socket.emit('message', 'Código QR recebido, por favor, faça a leitura!');
+      io.emit('qr', { id: id, src: url });
+      io.emit('message', { id: id, text: 'QR Code recebido, por favor escaneie!' });
     });
   });
 
   client.on('ready', () => {
-    socket.emit('ready', 'WhatsApp pronto!');
-    socket.emit('message', 'WhatsApp pronto!');
+    io.emit('ready', { id: id });
+    io.emit('message', { id: id, text: 'WhatsApp pronto.' });
+
+    const savedSessions = getSessionsFile();
+    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
+    savedSessions[sessionIndex].ready = true;
+    setSessionsFile(savedSessions);
   });
 
   client.on('authenticated', () => {
-    socket.emit('authenticated', 'WhatsApp autenticado!');
-    socket.emit('message', 'WhatsApp autenticado!');
-    console.log('AUTENTICADO');
+    io.emit('authenticated', { id: id });
+    io.emit('message', { id: id, text: 'WhatsApp autenticado.' });
   });
 
-  client.on('auth_failure', function(session) {
-    socket.emit('message', 'Falha na autenticação, reiniciando...');
+  client.on('auth_failure', function() {
+    io.emit('message', { id: id, text: 'Falha na autenticação! Reiniciando...' });
   });
 
   client.on('disconnected', (reason) => {
-    socket.emit('message', 'WhatsApp desconectado!');
+    io.emit('message', { id: id, text: 'WhatsApp desconectado!' });
     client.destroy();
     client.initialize();
+
+    // Removendo do arquivo de sessões
+    const savedSessions = getSessionsFile();
+    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
+    savedSessions.splice(sessionIndex, 1);
+    setSessionsFile(savedSessions);
+
+    io.emit('remove-session', id);
+  });
+
+  // Adicione o cliente às sessões
+  sessions.push({
+    id: id,
+    description: description,
+    client: client
+  });
+
+  // Adicionando a sessão ao arquivo
+  const savedSessions = getSessionsFile();
+  const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
+
+  if (sessionIndex == -1) {
+    savedSessions.push({
+      id: id,
+      description: description,
+      ready: false,
+    });
+    setSessionsFile(savedSessions);
+  }
+}
+
+const init = function(socket) {
+  const savedSessions = getSessionsFile();
+
+  if (savedSessions.length > 0) {
+    if (socket) {
+      /**
+       * Na primeira vez que é executado (por exemplo, ao reiniciar o servidor), nosso cliente ainda não está pronto!
+       * Ele precisará de algum tempo para autenticação.
+       * 
+       * Portanto, para evitar confusão com o status 'pronto',
+       * precisamos definir como FALSO para essa condição.
+       */
+      savedSessions.forEach((e, i, arr) => {
+        arr[i].ready = false;
+      });
+
+      socket.emit('init', savedSessions);
+    } else {
+      savedSessions.forEach(sess => {
+        createSession(sess.id, sess.description);
+      });
+    }
+  }
+}
+
+init();
+
+// Socket IO
+io.on('connection', function(socket) {
+  init(socket);
+
+  socket.on('create-session', function(data) {
+    console.log('Create session: ' + data.id);
+    createSession(data.id, data.description);
   });
 });
 
+// Enviar Mensagem de Texto
+app.post('/send-message', async (req, res) => {
+  console.log(req);
 
-const checkRegisteredNumber = async function(number) {
-  const isRegistered = await client.isRegisteredUser(number);
-  return isRegistered;
-}
-
-// Enviar Mensagem
-app.post('/send-message', [
-  body('number').notEmpty(),
-  body('message').notEmpty(),
-], async (req, res) => {
-  const errors = validationResult(req).formatWith(({
-    msg
-  }) => {
-    return msg;
-  });
-
-  if (!errors.isEmpty()) {
-    return res.status(422).json({
-      status: false,
-      message: errors.mapped()
-    });
-  }
-
+  const sender = req.body.sender;
   const number = phoneNumberFormatter(req.body.number);
   const message = req.body.message;
 
-  const isRegisteredNumber = await checkRegisteredNumber(number);
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  // Certifique-se de que o remetente exista e esteja pronto
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    })
+  }
+
+  /**
+   * Verifique se o número já está registrado
+   * Copiado de app.js
+   * 
+   * Por favor, verifique app.js para mais exemplos de validações
+   * Você pode adicionar o mesmo aqui!
+   */
+  const isRegisteredNumber = await client.isRegisteredUser(number);
 
   if (!isRegisteredNumber) {
     return res.status(422).json({
       status: false,
-      message: 'O número não está registrado.'
+      message: 'O número não está registrado!'
     });
   }
 
@@ -203,40 +234,6 @@ app.post('/send-message', [
   });
 });
 
-// Enviar Mídia
-app.post('/send-media', async (req, res) => {
-  const number = phoneNumberFormatter(req.body.number);
-  const caption = req.body.caption;
-  const fileUrl = req.body.file;
-
-  // const media = MessageMedia.fromFilePath('./image-example.png');
-  // const file = req.files.file;
-  // const media = new MessageMedia(file.mimetype, file.data.toString('base64'), file.name);
-  let mimetype;
-  const attachment = await axios.get(fileUrl, {
-    responseType: 'arraybuffer'
-  }).then(response => {
-    mimetype = response.headers['content-type'];
-    return response.data.toString('base64');
-  });
-
-  const media = new MessageMedia(mimetype, attachment, 'Media');
-
-  client.sendMessage(number, media, {
-    caption: caption
-  }).then(response => {
-    res.status(200).json({
-      status: true,
-      response: response
-    });
-  }).catch(err => {
-    res.status(500).json({
-      status: false,
-      response: err
-    });
-  });
-});
-
 server.listen(port, function() {
-  console.log('Aplicação em execução na porta *: ' + porta);
+  console.log('API em execução na porta *: ' + port);
 });
