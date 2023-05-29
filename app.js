@@ -257,6 +257,31 @@ app.post('/send-message', async (req, res) => {
   });
 });
 
+// Rota para buscar o QR code de uma sessão específica
+app.get('/qr-code/:sessionId', (req, res) => {
+  const sessionId = req.params.sessionId;
+  const session = sessions.find(sess => sess.id === sessionId);
+
+  if (!session) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada.'
+    });
+  }
+
+  if (!session.qrCode) {
+    return res.status(404).json({
+      status: false,
+      message: 'QR code não encontrado para esta sessão.'
+    });
+  }
+
+  return res.status(200).json({
+    status: true,
+    qrCode: session.qrCode
+  });
+});
+
 server.listen(port, function() {
   console.log('API em execução na porta *: ' + port);
 });
