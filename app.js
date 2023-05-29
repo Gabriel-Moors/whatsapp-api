@@ -184,6 +184,63 @@ io.on('connection', function(socket) {
   });
 });
 
+// Rota para criar uma sessão
+app.post('/create-session', (req, res) => {
+  const id = req.body.id;
+  const description = req.body.description;
+  const webhooks = req.body.webhooks;
+
+  // Verifica se o ID da sessão já está em uso
+  const sessionExists = sessions.some(sess => sess.id === id);
+  if (sessionExists) {
+    return res.status(400).json({ error: 'ID de sessão já está em uso' });
+  }
+
+  // Verifica se o número de webhooks é válido
+  if (!Array.isArray(webhooks) || webhooks.length !== 4) {
+    return res.status(400).json({ error: 'Número inválido de webhooks' });
+  }
+
+  // Cria a sessão
+  createSession(id, description);
+
+  // Adiciona os webhooks à sessão
+  const session = sessions.find(sess => sess.id === id);
+  if (session) {
+    session.webhooks = webhooks;
+  }
+
+  res.json({ success: true });
+});
+
+// Rota para excluir uma sessão
+app.delete('/delete-session/:id', (req, res) => {
+  const sessionId = req.params.id;
+
+  // Procurar sessão pelo ID
+  const sessionIndex = sessions.findIndex(sess => sess.id === sessionId);
+
+  // Se a sessão existir, removê-la
+  if (sessionIndex !== -1) {
+    const removedSession = sessions.splice(sessionIndex, 1);
+    setSessionsFile(sessions);
+
+    // Encerrar a conexão do cliente
+    removedSession[0].client.destroy();
+
+    return res.status(200).json({
+      status: true,
+      message: 'Sessão excluída com sucesso.',
+      data: removedSession[0]
+    });
+  } else {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada.'
+    });
+  }
+});
+
 // Rota para enviar mensagem de texto
 app.post('/send-message', async (req, res) => {
   console.log(req);
