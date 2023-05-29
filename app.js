@@ -346,7 +346,7 @@ app.post('/send-media', async (req, res) => {
   }
 });
 
-// Definir rota GET para obter o QR code de conexão
+// Obter o QR code de conexão
 app.get('/session/:id/qr', (req, res) => {
   const id = req.params.id;
   const session = sessions.find(sess => sess.id == id);
