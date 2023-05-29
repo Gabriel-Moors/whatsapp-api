@@ -172,7 +172,7 @@ const init = function(socket) {
       socket.emit('init', savedSessions);
     } else {
       savedSessions.forEach(sess => {
-        createSession(sess.id, sess.description);
+        createSession(sess.id, sess.description, sess.webhookUrl);
       });
     }
   }
