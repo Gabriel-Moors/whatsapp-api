@@ -17,6 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(fileUpload({ debug: false }));
 
+// Rota inicial
 app.get('/', (req, res) => {
   res.sendFile('index.html', { root: __dirname });
 });
@@ -24,6 +25,7 @@ app.get('/', (req, res) => {
 const SESSIONS_FILE = './whatsapp-sessions.json';
 let sessions = []; // Declaração da variável sessions
 
+// Verifica se o arquivo de sessões existe, caso contrário, cria um novo
 const createSessionsFileIfNotExists = () => {
   if (!fs.existsSync(SESSIONS_FILE)) {
     try {
@@ -37,6 +39,7 @@ const createSessionsFileIfNotExists = () => {
 
 createSessionsFileIfNotExists();
 
+// Salva as sessões no arquivo
 const setSessionsFile = (sessions) => {
   fs.writeFile(SESSIONS_FILE, JSON.stringify(sessions), (err) => {
     if (err) {
@@ -45,10 +48,12 @@ const setSessionsFile = (sessions) => {
   });
 }
 
+// Retorna as sessões do arquivo
 const getSessionsFile = () => {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
 }
 
+// Cria uma nova sessão
 const createSession = (id, description) => {
   console.log('Criando sessão: ' + id);
   const client = new Client({
@@ -132,6 +137,7 @@ const createSession = (id, description) => {
   }
 }
 
+// Inicializa as sessões salvas
 const init = (socket) => {
   const savedSessions = getSessionsFile();
 
@@ -150,8 +156,7 @@ const init = (socket) => {
   }
 }
 
-init();
-
+// Inicializa o socket
 io.on('connection', (socket) => {
   init(socket);
 
@@ -161,6 +166,7 @@ io.on('connection', (socket) => {
   });
 });
 
+// Rota para envio de mensagens
 app.post('/send-message', async (req, res) => {
   const sender = req.body.sender;
   const number = phoneNumberFormatter(req.body.number);
@@ -199,6 +205,7 @@ app.post('/send-message', async (req, res) => {
     });
 });
 
+// Inicia o servidor
 server.listen(port, () => {
   console.log('Aplicação em execução em *: ' + port);
 });
