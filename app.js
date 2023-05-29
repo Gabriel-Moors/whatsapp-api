@@ -56,7 +56,7 @@ const getSessionsFile = function() {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
 }
 
-const createSession = function(id, description) {
+const createSession = function(id, description, webhooks) {
   console.log('Criando sessão: ' + id);
   const client = new Client({
     restartOnAuthFail: true,
@@ -96,17 +96,6 @@ const createSession = function(id, description) {
     const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
     savedSessions[sessionIndex].ready = true;
     setSessionsFile(savedSessions);
-
-    // Enviar uma mensagem para cada webhook quando a sessão estiver pronta
-    webhookUrls.forEach((url) => {
-      axios.post(url, { status: 'ready' })
-        .then(() => {
-          console.log('Mensagem enviada para o webhook:', url);
-        })
-        .catch((error) => {
-          console.error('Erro ao enviar mensagem para o webhook:', url, error);
-        });
-    });
   });
 
   client.on('authenticated', () => {
@@ -133,9 +122,7 @@ const createSession = function(id, description) {
   });
 
   // Registre os webhooks
-  const webhookUrls = ['URL_1', 'URL_2', 'URL_3', 'URL_4']; // Substitua pelas URLs reais dos webhooks
-
-  webhookUrls.forEach((url, index) => {
+  webhooks.forEach((url, index) => {
     client.onMessage(async (message) => {
       try {
         // Faça o post da mensagem recebida para o webhook
@@ -179,7 +166,7 @@ const init = function(socket) {
       socket.emit('init', savedSessions);
     } else {
       savedSessions.forEach(sess => {
-        createSession(sess.id, sess.description);
+        createSession(sess.id, sess.description, sess.webhooks);
       });
     }
   }
@@ -193,11 +180,11 @@ io.on('connection', function(socket) {
 
   socket.on('create-session', function(data) {
     console.log('Criar sessão: ' + data.id);
-    createSession(data.id, data.description);
+    createSession(data.id, data.description, data.webhooks);
   });
 });
 
-// Rota para enviar mesagem de texto
+// Rota para enviar mensagem de texto
 app.post('/send-message', async (req, res) => {
   console.log(req);
 
