@@ -237,6 +237,6 @@ app.post('/send-media', async (req, res) => {
   });
 });
 
-servidor.escutar(porta, function() {
+server.listen(port, function() {
   console.log('Aplicação em execução na porta *: ' + porta);
 });
