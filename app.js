@@ -43,9 +43,9 @@ const createSessionsFileIfNotExists = function() {
   if (!fs.existsSync(SESSIONS_FILE)) {
     try {
       fs.writeFileSync(SESSIONS_FILE, JSON.stringify([]));
-      console.log('Sessão criada com sucesso.');
+      console.log('Arquivo de sessões criado com sucesso.');
     } catch(err) {
-      console.log('Falha ao criar sessão! ', err);
+      console.log('Falha ao criar o arquivo de sessões! ', err);
     }
   }
 }
