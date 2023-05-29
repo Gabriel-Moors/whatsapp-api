@@ -269,7 +269,18 @@ app.get('/qr-code/:sessionId', (req, res) => {
     });
   }
 
-  if (!session.qrCode) {
+  const client = session.client;
+
+  if (!client) {
+    return res.status(404).json({
+      status: false,
+      message: 'Cliente não encontrado para esta sessão.'
+    });
+  }
+
+  const qrCode = client.qrCode;
+  
+  if (!qrCode) {
     return res.status(404).json({
       status: false,
       message: 'QR code não encontrado para esta sessão.'
@@ -278,7 +289,7 @@ app.get('/qr-code/:sessionId', (req, res) => {
 
   return res.status(200).json({
     status: true,
-    qrCode: session.qrCode
+    qrCode: qrCode
   });
 });
 
