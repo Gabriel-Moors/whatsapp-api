@@ -139,7 +139,7 @@ const createSession = function(id, description, webhookUrl) {
     client: client
   });
 
-  // Adicionando a sessão ao arquivo
+  // Adicionando a sessão no arquivo
   const savedSessions = getSessionsFile();
   const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
 
@@ -191,7 +191,7 @@ io.on('connection', function(socket) {
   });
 });
 
-// Rota Create Session
+// Rota de Criação de Sessão
 app.post('/create-session', (req, res) => {
   const { id, description, webhookUrl } = req.body;
 
@@ -210,7 +210,7 @@ app.post('/create-session', (req, res) => {
   });
 });
 
-// Enviar Mensagem de Texto
+// Rota de Enviar Mensagem de Texto
 app.post('/send-message', async (req, res) => {
   console.log(req);
 
