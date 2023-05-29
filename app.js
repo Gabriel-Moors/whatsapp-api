@@ -93,11 +93,11 @@ const createSession = function(id, description, webhookUrl) {
 
   client.on('qr', (qr) => {
     console.log('QR RECEBIDO', qr);
-    qrcode.toDataURL(qr, (err, url) => {
-      io.emit('qr', { id: id, src: url });
-      io.emit('message', { id: id, text: 'QR Code recebido, por favor escaneie!' });
-    });
-  });
+    const qrCode = 'data:image/png;base64,' + qr;
+    session.qrCode = qrCode;
+    io.emit('qr', { id: id, src: qrCode });
+    io.emit('message', { id: id, text: 'QR Code recebido, por favor escaneie!' });
+  });  
 
   client.on('ready', () => {
     io.emit('ready', { id: id });
