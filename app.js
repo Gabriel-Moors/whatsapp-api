@@ -148,10 +148,6 @@ const init = (socket) => {
       });
 
       socket.emit('init', savedSessions);
-    } else {
-      savedSessions.forEach(sess => {
-        createSession(sess.id, sess.description);
-      });
     }
   }
 }
@@ -161,7 +157,6 @@ io.on('connection', (socket) => {
   init(socket);
 
   socket.on('create-session', (data) => {
-    console.log('Criando sessão: ' + data.id);
     createSession(data.id, data.description);
   });
 });
