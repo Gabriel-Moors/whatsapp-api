@@ -83,10 +83,14 @@ const createSession = function(id, description, webhooks) {
   client.on('qr', (qr) => {
     console.log('QR RECEBIDO', qr);
     qrcode.toDataURL(qr, (err, url) => {
-      io.emit('qr', { id: id, src: url });
-      io.emit('message', { id: id, text: 'QR Code recebido, por favor, escaneie!' });
+      const sessionData = {
+        id: id,
+        description: description,
+        qrCode: url // Adiciona o QR code à resposta JSON
+      };
+      res.json(sessionData);
     });
-  });
+  });  
 
   client.on('ready', () => {
     io.emit('ready', { id: id });
