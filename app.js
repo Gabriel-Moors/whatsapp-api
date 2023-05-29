@@ -192,6 +192,34 @@ app.post('/create-session', (req, res) => {
   });
 });
 
+// Rota para deletar uma sessão específica
+app.delete('/delete-session/:sessionId', (req, res) => {
+  const sessionId = req.params.sessionId;
+  const sessionIndex = sessions.findIndex(sess => sess.id === sessionId);
+
+  if (sessionIndex === -1) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada.'
+    });
+  }
+
+  // Encerre o cliente da sessão
+  const client = sessions[sessionIndex].client;
+  client.destroy();
+
+  // Remova a sessão do array de sessões
+  sessions.splice(sessionIndex, 1);
+
+  // Atualize o arquivo de sessões
+  setSessionsFile(getSessionsFile().filter(sess => sess.id !== sessionId));
+
+  res.status(200).json({
+    status: true,
+    message: 'Sessão deletada com sucesso.'
+  });
+});
+
 // Rota de Envio de Mensagem de Texto
 app.post('/send-message', async (req, res) => {
   console.log(req);
