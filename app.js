@@ -254,6 +254,250 @@ app.post('/create-session', (req, res) => {
   });
 });
 
+// Rota para buscar o estado da sessão
+app.get('/session/:id', (req, res) => {
+  const id = req.params.id;
+  const session = sessions.find(sess => sess.id == id);
+
+  if (session) {
+    return res.status(200).json({
+      status: true,
+      session: session
+    });
+  } else {
+    return res.status(404).json({
+      status: false,
+      message: 'Session not found'
+    });
+  }
+});
+
+// Rota para enviar arquivo de mídia
+app.post('/send-media', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+
+  if (req.files && req.files.media) {
+    const media = req.files.media;
+
+    const client = sessions.find(sess => sess.id == sender)?.client;
+
+    // Verifique se o remetente existe e está pronto
+    if (!client) {
+      return res.status(422).json({
+        status: false,
+        message: `The sender: ${sender} is not found!`
+      })
+    }
+
+    /**
+     * Verifique se o número está registrado
+     * Copiado de app.js
+     * 
+     * Por favor, verifique app.js para mais exemplos de validações
+     * Você pode adicionar as mesmas aqui!
+     */
+    const isRegisteredNumber = await client.isRegisteredUser(number);
+
+    if (!isRegisteredNumber) {
+      return res.status(422).json({
+        status: false,
+        message: 'The number is not registered'
+      });
+    }
+
+    const mediaPath = './temp/' + media.name;
+
+    media.mv(mediaPath, (err) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({
+          status: false,
+          message: 'Failed to upload media'
+        });
+      }
+
+      const mediaCaption = caption ? caption : '';
+
+      const mediaMessage = new MessageMedia(media.mimetype, fs.readFileSync(mediaPath), media.name);
+
+      client.sendMessage(number, mediaMessage, { caption: mediaCaption }).then(response => {
+        fs.unlinkSync(mediaPath); // Remover arquivo de mídia após o envio
+
+        res.status(200).json({
+          status: true,
+          response: response
+        });
+      }).catch(err => {
+        fs.unlinkSync(mediaPath); // Remover arquivo de mídia em caso de erro
+
+        res.status(500).json({
+          status: false,
+          response: err
+        });
+      });
+    });
+  } else {
+    return res.status(400).json({
+      status: false,
+      message: 'Media file is required'
+    });
+  }
+});
+
+// Rota para buscar informações do usuário
+app.get('/user/:id', async (req, res) => {
+  const id = req.params.id;
+  const session = sessions.find(sess => sess.id == id);
+
+  if (session) {
+    const client = session.client;
+    const user = await client.getNumberProfile(session.client.info.me.user);
+
+    if (user) {
+      return res.status(200).json({
+        status: true,
+        user: user
+      });
+    } else {
+      return res.status(404).json({
+        status: false,
+        message: 'User not found'
+      });
+    }
+  } else {
+    return res.status(404).json({
+      status: false,
+      message: 'Session not found'
+    });
+  }
+});
+
+// Rota para buscar conversas
+app.get('/chats/:id', async (req, res) => {
+  const id = req.params.id;
+  const session = sessions.find(sess => sess.id == id);
+
+  if (session) {
+    const client = session.client;
+    const chats = await client.getChats();
+
+    return res.status(200).json({
+      status: true,
+      chats: chats
+    });
+  } else {
+    return res.status(404).json({
+      status: false,
+      message: 'Session not found'
+    });
+  }
+});
+
+// Rota para buscar mensagens de uma conversa
+app.get('/messages/:id/:chatId', async (req, res) => {
+  const id = req.params.id;
+  const chatId = req.params.chatId;
+  const session = sessions.find(sess => sess.id == id);
+
+  if (session) {
+    const client = session.client;
+    const messages = await client.getChatMessages(chatId);
+
+    return res.status(200).json({
+      status: true,
+      messages: messages
+    });
+  } else {
+    return res.status(404).json({
+      status: false,
+      message: 'Session not found'
+    });
+  }
+});
+
+// Rota para atualizar informações do usuário
+app.put('/user/:id', async (req, res) => {
+  const id = req.params.id;
+  const name = req.body.name;
+  const status = req.body.status;
+  const session = sessions.find(sess => sess.id == id);
+
+  if (session) {
+    const client = session.client;
+
+    await client.updateProfile({
+      name: name,
+      status: status
+    });
+
+    return res.status(200).json({
+      status: true,
+      message: 'User updated successfully'
+    });
+  } else {
+    return res.status(404).json({
+      status: false,
+      message: 'Session not found'
+    });
+  }
+});
+
+// Rota para atualizar o status de "visto por último" do usuário
+app.put('/seen/:id/:chatId', async (req, res) => {
+  const id = req.params.id;
+  const chatId = req.params.chatId;
+  const session = sessions.find(sess => sess.id == id);
+
+  if (session) {
+    const client = session.client;
+
+    await client.sendSeen(chatId);
+
+    return res.status(200).json({
+      status: true,
+      message: 'Seen status updated successfully'
+    });
+  } else {
+    return res.status(404).json({
+      status: false,
+      message: 'Session not found'
+    });
+  }
+});
+
+// Rota para desconectar a sessão
+app.delete('/session/:id', (req, res) => {
+  const id = req.params.id;
+  const sessionIndex = sessions.findIndex(sess => sess.id == id);
+
+  if (sessionIndex != -1) {
+    const session = sessions[sessionIndex];
+    session.client.destroy();
+    sessions.splice(sessionIndex, 1);
+
+    // Remove session from sessions file
+    const savedSessions = getSessionsFile();
+    const sessionFileIndex = savedSessions.findIndex(sess => sess.id == id);
+
+    if (sessionFileIndex != -1) {
+      savedSessions.splice(sessionFileIndex, 1);
+      setSessionsFile(savedSessions);
+    }
+
+    return res.status(200).json({
+      status: true,
+      message: 'Session disconnected'
+    });
+  } else {
+    return res.status(404).json({
+      status: false,
+      message: 'Session not found'
+    });
+  }
+});
+
 server.listen(port, function() {
   console.log('App running on *: ' + port);
 });
