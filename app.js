@@ -231,10 +231,10 @@ app.post('/send-message', async (req, res) => {
   });
 });
 
-// Rota de Geração de QR Code
+// Rota para obter o QR code de uma sessão específica
 app.get('/qr-code/:sessionId', (req, res) => {
   const sessionId = req.params.sessionId;
-  const session = sessions.find(sess => sess.id == sessionId);
+  const session = sessions.find(sess => sess.id === sessionId);
 
   if (!session) {
     return res.status(404).json({
@@ -254,5 +254,5 @@ app.get('/qr-code/:sessionId', (req, res) => {
 });
 
 server.listen(port, function() {
-  console.log('App listening on *:' + port);
+  console.log('API em execução na porta *:' + port);
 });
