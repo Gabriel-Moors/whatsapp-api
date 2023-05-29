@@ -107,7 +107,7 @@ const getSessionsFile = function() {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
 }
 
-const createSession = function(id, description, webhookUrls) {
+const createSession = function(id, description, webhookUrl) {
   console.log('Criando sessão: ' + id);
   const client = new Client({
     restartOnAuthFail: true,
@@ -118,186 +118,368 @@ const createSession = function(id, description, webhookUrls) {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process', // <- este não funciona no Windows
         '--disable-gpu'
       ],
-      ignoreDefaultArgs: ['--disable-extensions'],
     },
-    session: id ? id : undefined
+    authStrategy: new LocalAuth({
+      clientId: id
+    }),
+    sessionData: {
+      webhookUrl: webhookUrl
+    }
   });
 
   client.initialize();
 
-  client.on('qr', qr => {
-    console.log('QR code recebido', qr);
-    io.emit('qrCode', {
-      sessionId: id,
-      qrCode: qr
-    });
-  });
-
-  client.on('authenticated', session => {
-    console.log('Autenticado na sessão: ' + session);
-    io.emit('authenticated', {
-      sessionId: id,
-      session: session
-    });
-    clientName = session;
-    sessionCfg = session;
-  });
-
-  client.on('auth_failure', msg => {
-    console.error('Falha na autenticação: ', msg);
-    io.emit('authFailure', {
-      sessionId: id,
-      message: msg
+  client.on('qr', (qr) => {
+    console.log('QR RECEBIDO', qr);
+    qrcode.toDataURL(qr, (err, url) => {
+      io.emit('qr', { id: id, src: url });
+      io.emit('message', { id: id, text: 'QR Code recebido, por favor escaneie!' });
     });
   });
 
   client.on('ready', () => {
-    console.log('Cliente pronto!');
-    io.emit('ready', {
-      sessionId: id
-    });
+    io.emit('ready', { id: id });
+    io.emit('message', { id: id, text: 'WhatsApp pronto.' });
+
     const savedSessions = getSessionsFile();
-
-    const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
-    if (sessionIndex === -1) {
-      savedSessions.push({
-        id: id,
-        description: description,
-        ready: true,
-        webhookUrls: webhookUrls
-      });
-    } else {
-      savedSessions[sessionIndex].ready = true;
-      savedSessions[sessionIndex].webhookUrls = webhookUrls;
-    }
-
+    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
+    savedSessions[sessionIndex].ready = true;
     setSessionsFile(savedSessions);
   });
 
-  client.on('message', async msg => {
-    const savedSessions = getSessionsFile();
-    const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
-    if (sessionIndex !== -1 && savedSessions[sessionIndex].webhookUrls) {
-      const webhookUrls = savedSessions[sessionIndex].webhookUrls;
-      for (const webhookUrl of webhookUrls) {
-        try {
-          await axios.post(webhookUrl, msg);
-          console.log('Mensagem enviada para o webhook:', webhookUrl);
-        } catch (error) {
-          console.error('Erro ao enviar mensagem para o webhook:', webhookUrl, error);
-        }
-      }
-    }
+  client.on('authenticated', () => {
+    io.emit('authenticated', { id: id });
+    io.emit('message', { id: id, text: 'WhatsApp autenticado.' });
   });
 
-  return {
+  client.on('auth_failure', (session) => {
+    io.emit('message', { id: id, text: 'Falha na autenticação, tente novamente!' });
+  });
+
+  client.on('disconnected', (reason) => {
+    io.emit('message', { id: id, text: 'WhatsApp desconectado!' });
+    fs.unlinkSync(SESSIONS_FILE, function(err) {
+      if (err) return console.log(err);
+      console.log('Arquivo de sessões excluído com sucesso.');
+    });
+    client.destroy();
+    client.initialize();
+
+    const savedSessions = getSessionsFile();
+    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
+    savedSessions[sessionIndex].ready = false;
+    setSessionsFile(savedSessions);
+  });
+
+  client.on('message', async (msg) => {
+    io.emit('message', { id: id, text: msg.body });
+  });
+
+  const session = {
     id: id,
     description: description,
-    ready: false,
     client: client
-  };
-}
-
-// Carrega as sessões salvas no arquivo
-const savedSessions = getSessionsFile();
-if (savedSessions.length) {
-  for (const sess of savedSessions) {
-    const session = createSession(sess.id, sess.description, sess.webhookUrls);
-    session.ready = sess.ready;
-    sessions.push(session);
   }
-}
 
-app.post('/sessions', (req, res) => {
-  const {
-    id,
-    description,
-    webhookUrls
-  } = req.body;
-
-  const session = createSession(id, description, webhookUrls);
   sessions.push(session);
 
-  res.json({
+  const savedSessions = getSessionsFile();
+  savedSessions.push({ id: id, description: description, ready: false });
+  setSessionsFile(savedSessions);
+}
+
+// Rota para criar uma sessão
+app.post('/create-session', (req, res) => {
+  const { id, description, webhookUrl } = req.body;
+
+  if (!id || !description || !webhookUrl) {
+    return res.status(400).json({
+      status: false,
+      message: 'ID, descrição e URL do webhook são obrigatórios.'
+    });
+  }
+
+  createSession(id, description, webhookUrl);
+
+  return res.status(200).json({
     status: true,
     message: 'Sessão criada com sucesso.'
   });
 });
 
-app.delete('/sessions/:sessionId', (req, res) => {
+// Rota para obter o QR code de uma sessão
+app.get('/qr-code/:sessionId', (req, res) => {
+  const sessionId = req.params.sessionId;
+  const session = sessions.find(sess => sess.id === sessionId);
+
+  if (!session) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada.'
+    });
+  }
+
+  const client = session.client;
+
+  client.on('qr', (qr) => {
+    res.json({
+      status: true,
+      qr: qr
+    });
+  });
+});
+
+// Rota para deletar uma sessão
+app.delete('/delete-session/:sessionId', (req, res) => {
   const sessionId = req.params.sessionId;
   const sessionIndex = sessions.findIndex(sess => sess.id === sessionId);
 
-  if (sessionIndex !== -1) {
-    const session = sessions[sessionIndex];
-    session.client.destroy();
-    sessions.splice(sessionIndex, 1);
-
-    const savedSessions = getSessionsFile();
-    const savedSessionIndex = savedSessions.findIndex(sess => sess.id === sessionId);
-    if (savedSessionIndex !== -1) {
-      savedSessions.splice(savedSessionIndex, 1);
-      setSessionsFile(savedSessions);
-    }
-
-    res.json({
-      status: true,
-      message: 'Sessão encerrada com sucesso.'
-    });
-  } else {
-    res.status(404).json({
+  if (sessionIndex === -1) {
+    return res.status(404).json({
       status: false,
       message: 'Sessão não encontrada.'
     });
   }
+
+  const client = sessions[sessionIndex].client;
+  client.destroy();
+
+  sessions.splice(sessionIndex, 1);
+  setSessionsFile(getSessionsFile().filter(sess => sess.id !== sessionId));
+
+  res.status(200).json({
+    status: true,
+    message: 'Sessão deletada com sucesso.'
+  });
 });
 
+// Rota para enviar uma mensagem de texto
 app.post('/send-message', async (req, res) => {
-  const {
-    sessionId,
-    number,
-    message
-  } = req.body;
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const message = req.body.message;
 
-  const sessionIndex = sessions.findIndex(sess => sess.id === sessionId);
+  const client = sessions.find(sess => sess.id == sender)?.client;
 
-  if (sessionIndex !== -1) {
-    const session = sessions[sessionIndex];
-    const client = session.client;
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    });
+  }
 
-    const numberFormatted = phoneNumberFormatter(number);
-    const messageToSend = message;
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: `O número: ${number} não está registrado no WhatsApp!`
+    });
+  }
 
-    try {
-      await client.sendMessage(numberFormatted, messageToSend);
+  client.sendMessage(number, message).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
+});
 
-      res.json({
-        status: true,
-        message: 'Mensagem enviada com sucesso.'
-      });
-    } catch (error) {
-      res.status(500).json({
-        status: false,
-        message: 'Erro ao enviar mensagem: ' + error
-      });
-    }
-  } else {
-    res.status(404).json({
+// Rota para enviar uma mensagem de mídia
+app.post('/send-media', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+  const fileUrl = req.body.fileUrl;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    });
+  }
+
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: `O número: ${number} não está registrado no WhatsApp!`
+    });
+  }
+
+  const media = MessageMedia.fromUrl(fileUrl);
+
+  client.sendMessage(number, media, { caption: caption }).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
+});
+
+// Rota para enviar uma mensagem com imagem em base64
+app.post('/send-image', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+  const imageData = req.body.imageData;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    });
+  }
+
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: `O número: ${number} não está registrado no WhatsApp!`
+    });
+  }
+
+  const media = new MessageMedia('image/png', imageData);
+
+  client.sendMessage(number, media, { caption: caption }).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
+});
+
+// Rota para enviar uma mensagem com arquivo em base64
+app.post('/send-file', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+  const fileData = req.body.fileData;
+  const fileName = req.body.fileName;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    });
+  }
+
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: `O número: ${number} não está registrado no WhatsApp!`
+    });
+  }
+
+  const media = new MessageMedia.fromBase64(fileData, fileName);
+
+  client.sendMessage(number, media, { caption: caption }).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
+});
+
+// Rota para enviar uma mensagem com arquivo em anexo
+app.post('/send-attachment', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+  const attachment = req.files && req.files.attachment;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    });
+  }
+
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: `O número: ${number} não está registrado no WhatsApp!`
+    });
+  }
+
+  if (!attachment) {
+    return res.status(400).json({
+      status: false,
+      message: 'Anexo não encontrado.'
+    });
+  }
+
+  const media = new MessageMedia(attachment.mimetype, attachment.data);
+
+  client.sendMessage(number, media, { caption: caption }).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
+});
+
+// Rota para obter os contatos de uma sessão
+app.get('/contacts/:sessionId', async (req, res) => {
+  const sessionId = req.params.sessionId;
+  const session = sessions.find(sess => sess.id === sessionId);
+
+  if (!session) {
+    return res.status(404).json({
       status: false,
       message: 'Sessão não encontrada.'
     });
   }
-});
 
-io.on('connection', function(socket) {
-  socket.on('newSession', function(session) {
-    const newSession = createSession(session.id, session.description, session.webhookUrls);
-    sessions.push(newSession);
+  const client = session.client;
+
+  const contacts = await client.getContacts();
+
+  res.status(200).json({
+    status: true,
+    contacts: contacts
   });
 });
 
 server.listen(port, function() {
-  console.log('App listening on *:' + port);
+  console.log('App rodando na porta ' + port);
 });
