@@ -96,6 +96,17 @@ const createSession = function(id, description) {
     const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
     savedSessions[sessionIndex].ready = true;
     setSessionsFile(savedSessions);
+
+    // Enviar uma mensagem para cada webhook quando a sessão estiver pronta
+    webhookUrls.forEach((url) => {
+      axios.post(url, { status: 'ready' })
+        .then(() => {
+          console.log('Mensagem enviada para o webhook:', url);
+        })
+        .catch((error) => {
+          console.error('Erro ao enviar mensagem para o webhook:', url, error);
+        });
+    });
   });
 
   client.on('authenticated', () => {
@@ -119,6 +130,20 @@ const createSession = function(id, description) {
     setSessionsFile(savedSessions);
 
     io.emit('remove-session', id);
+  });
+
+  // Registre os webhooks
+  const webhookUrls = ['URL_1', 'URL_2', 'URL_3', 'URL_4']; // Substitua pelas URLs reais dos webhooks
+
+  webhookUrls.forEach((url, index) => {
+    client.onMessage(async (message) => {
+      try {
+        // Faça o post da mensagem recebida para o webhook
+        await axios.post(url, message);
+      } catch (error) {
+        console.error('Erro ao enviar mensagem para o webhook:', error);
+      }
+    });
   });
 
   // Adicione o cliente ao arquivo de sessões
@@ -172,7 +197,7 @@ io.on('connection', function(socket) {
   });
 });
 
-// Rota para enviar mensagem de texto
+// Rota para enviar mesagem de texto
 app.post('/send-message', async (req, res) => {
   console.log(req);
 
