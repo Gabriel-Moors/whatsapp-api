@@ -81,6 +81,9 @@ const createSession = function(id, description, webhookUrl) {
         '--disable-gpu'
       ],
     },
+    authStrategy: new LocalAuth({
+      clientId: id
+    }),
     sessionData: {
       webhookUrl: webhookUrl // Define a URL do webhook na sessão
     }
@@ -145,7 +148,7 @@ const createSession = function(id, description, webhookUrl) {
       id: id,
       description: description,
       ready: false,
-      webhookUrl: webhookUrl // Adiciona a URL do webhook ao objeto de sessão
+      webhookUrl: webhookUrl // Adiciona a URL do webhook na sessão
     });
     setSessionsFile(savedSessions);
   }
@@ -185,6 +188,25 @@ io.on('connection', function(socket) {
   socket.on('create-session', function(data) {
     console.log('Criar sessão: ' + data.id);
     createSession(data.id, data.description, data.webhookUrl);
+  });
+});
+
+// Rota Create Session
+app.post('/create-session', (req, res) => {
+  const { id, description, webhookUrl } = req.body;
+
+  if (!id || !description || !webhookUrl) {
+    return res.status(400).json({
+      status: false,
+      message: 'ID, descrição e URL do webhook são obrigatórios.'
+    });
+  }
+
+  createSession(id, description, webhookUrl);
+
+  return res.status(200).json({
+    status: true,
+    message: 'Sessão criada com sucesso.'
   });
 });
 
