@@ -201,24 +201,32 @@ app.post('/send-message', async (req, res) => {
     });
 });
 
-// Rota para criar uma nova sessão
-app.post('/create-session', (req, res) => {
-  const id = req.body.id;
-  const description = req.body.description;
-  const webhooks = req.body.webhooks;
+// Rota para deletar uma sessão
+app.delete('/delete-session/:id', (req, res) => {
+  const sessionId = req.params.id;
 
-  if (!id || !description || !webhooks || webhooks.length !== 4) {
-    return res.status(422).json({
+  // Encontre a sessão com o ID fornecido
+  const sessionIndex = sessions.findIndex(sess => sess.id === sessionId);
+
+  if (sessionIndex === -1) {
+    return res.status(404).json({
       status: false,
-      message: 'Os dados da sessão são inválidos ou estão faltando.'
+      message: 'Sessão não encontrada.'
     });
   }
 
-  createSession(id, description, webhooks);
+  // Remova a sessão da matriz de sessões
+  const deletedSession = sessions.splice(sessionIndex, 1)[0];
+
+  // Salve as alterações no arquivo de sessões
+  setSessionsFile(sessions);
+
+  // Emita um evento para notificar a remoção da sessão
+  io.emit('remove-session', deletedSession.id);
 
   return res.status(200).json({
     status: true,
-    message: 'Sessão criada com sucesso.'
+    message: 'Sessão removida com sucesso.'
   });
 });
 
