@@ -22,17 +22,18 @@ app.get('/', (req, res) => {
 });
 
 const SESSIONS_FILE = './whatsapp-sessions.json';
+let sessions = []; // Declaração da variável sessions
 
 const createSessionsFileIfNotExists = () => {
   if (!fs.existsSync(SESSIONS_FILE)) {
     try {
       fs.writeFileSync(SESSIONS_FILE, JSON.stringify([]));
       console.log('Arquivo de sessões criado com sucesso.');
-    } catch(err) {
-      console.log('Falha ao criar arquivo de sessões: ', err);
+    } catch (err) {
+      console.log('Falha ao criar o arquivo de sessões: ', err);
     }
   }
-};
+}
 
 createSessionsFileIfNotExists();
 
@@ -42,11 +43,11 @@ const setSessionsFile = (sessions) => {
       console.log(err);
     }
   });
-};
+}
 
 const getSessionsFile = () => {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
-};
+}
 
 const createSession = (id, description) => {
   console.log('Criando sessão: ' + id);
@@ -61,7 +62,7 @@ const createSession = (id, description) => {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--single-process', // <- esse argumento não funciona no Windows
+        '--single-process',
         '--disable-gpu'
       ],
     },
@@ -82,17 +83,17 @@ const createSession = (id, description) => {
 
   client.on('ready', () => {
     io.emit('ready', { id: id });
-    io.emit('message', { id: id, text: 'WhatsApp está pronto!' });
+    io.emit('message', { id: id, text: 'Whatsapp está pronto!' });
 
     const savedSessions = getSessionsFile();
-    const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
+    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
     savedSessions[sessionIndex].ready = true;
     setSessionsFile(savedSessions);
   });
 
   client.on('authenticated', () => {
     io.emit('authenticated', { id: id });
-    io.emit('message', { id: id, text: 'WhatsApp está autenticado!' });
+    io.emit('message', { id: id, text: 'Whatsapp está autenticado!' });
   });
 
   client.on('auth_failure', () => {
@@ -100,12 +101,12 @@ const createSession = (id, description) => {
   });
 
   client.on('disconnected', (reason) => {
-    io.emit('message', { id: id, text: 'WhatsApp está desconectado!' });
+    io.emit('message', { id: id, text: 'Whatsapp está desconectado!' });
     client.destroy();
     client.initialize();
 
     const savedSessions = getSessionsFile();
-    const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
+    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
     savedSessions.splice(sessionIndex, 1);
     setSessionsFile(savedSessions);
 
@@ -119,9 +120,9 @@ const createSession = (id, description) => {
   });
 
   const savedSessions = getSessionsFile();
-  const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
+  const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
 
-  if (sessionIndex === -1) {
+  if (sessionIndex == -1) {
     savedSessions.push({
       id: id,
       description: description,
@@ -129,7 +130,7 @@ const createSession = (id, description) => {
     });
     setSessionsFile(savedSessions);
   }
-};
+}
 
 const init = (socket) => {
   const savedSessions = getSessionsFile();
@@ -147,7 +148,7 @@ const init = (socket) => {
       });
     }
   }
-};
+}
 
 init();
 
@@ -161,18 +162,16 @@ io.on('connection', (socket) => {
 });
 
 app.post('/send-message', async (req, res) => {
-  console.log(req);
-
   const sender = req.body.sender;
   const number = phoneNumberFormatter(req.body.number);
   const message = req.body.message;
 
-  const client = sessions.find(sess => sess.id === sender)?.client;
+  const client = sessions.find(sess => sess.id == sender)?.client;
 
   if (!client) {
     return res.status(422).json({
       status: false,
-      message: `O remetente ${sender} não foi encontrado!`
+      message: `O remetente: ${sender} não foi encontrado!`
     });
   }
 
