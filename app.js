@@ -54,7 +54,7 @@ const getSessionsFile = () => {
 }
 
 // Cria uma nova sessão
-const createSession = (id, description) => {
+const createSession = (id, description, webhooks) => {
   console.log('Criando sessão: ' + id);
   const client = new Client({
     restartOnAuthFail: true,
@@ -121,7 +121,8 @@ const createSession = (id, description) => {
   sessions.push({
     id: id,
     description: description,
-    client: client
+    client: client,
+    webhooks: webhooks
   });
 
   const savedSessions = getSessionsFile();
@@ -132,6 +133,7 @@ const createSession = (id, description) => {
       id: id,
       description: description,
       ready: false,
+      webhooks: webhooks
     });
     setSessionsFile(savedSessions);
   }
@@ -158,7 +160,7 @@ io.on('connection', (socket) => {
 
   socket.on('create-session', (data) => {
     console.log('Criando sessão: ' + data.id);
-    createSession(data.id, data.description);
+    createSession(data.id, data.description, data.webhooks);
   });
 });
 
@@ -201,32 +203,53 @@ app.post('/send-message', async (req, res) => {
     });
 });
 
-// Rota para deletar uma sessão
-app.delete('/delete-session/:id', (req, res) => {
-  const sessionId = req.params.id;
+// Rota para criar uma nova sessão
+app.post('/create-session', (req, res) => {
+  const id = req.body.id;
+  const description = req.body.description;
+  const webhooks = req.body.webhooks;
 
-  // Encontre a sessão com o ID fornecido
-  const sessionIndex = sessions.findIndex(sess => sess.id === sessionId);
-
-  if (sessionIndex === -1) {
-    return res.status(404).json({
+  if (!id || !description || !webhooks || webhooks.length !== 4) {
+    return res.status(422).json({
       status: false,
-      message: 'Sessão não encontrada.'
+      message: 'Os dados da sessão são inválidos ou estão faltando.'
     });
   }
 
-  // Remova a sessão da matriz de sessões
-  const deletedSession = sessions.splice(sessionIndex, 1)[0];
-
-  // Salve as alterações no arquivo de sessões
-  setSessionsFile(sessions);
-
-  // Emita um evento para notificar a remoção da sessão
-  io.emit('remove-session', deletedSession.id);
+  createSession(id, description, webhooks);
 
   return res.status(200).json({
     status: true,
-    message: 'Sessão removida com sucesso.'
+    message: 'Sessão criada com sucesso.'
+  });
+});
+
+// Rota para deletar uma sessão
+app.delete('/delete-session/:id', (req, res) => {
+  const id = req.params.id;
+
+  const sessionIndex = sessions.findIndex(sess => sess.id == id);
+  if (sessionIndex === -1) {
+    return res.status(404).json({
+      status: false,
+      message: 'A sessão não foi encontrada.'
+    });
+  }
+
+  const savedSessions = getSessionsFile();
+  const savedSessionIndex = savedSessions.findIndex(sess => sess.id == id);
+
+  savedSessions.splice(savedSessionIndex, 1);
+  setSessionsFile(savedSessions);
+
+  sessions[sessionIndex].client.destroy();
+  sessions.splice(sessionIndex, 1);
+
+  io.emit('remove-session', id);
+
+  return res.status(200).json({
+    status: true,
+    message: 'Sessão excluída com sucesso.'
   });
 });
 
