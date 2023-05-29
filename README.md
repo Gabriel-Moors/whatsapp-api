@@ -37,7 +37,7 @@ Aqui está um passo a passo detalhado:
 
 5. Criar o projeto no diretório e instalar todas as dependências:
      ```
-     git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api && npm install
+     sudo su && git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api && npm install
      ```
 7. Executar o servidor:
    - Execute o servidor Express com o seguinte comando:
