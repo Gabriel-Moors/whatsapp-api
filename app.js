@@ -97,7 +97,13 @@ const createSession = function(id, description, webhookUrl) {
     session.qrCode = qrCode;
     io.emit('qr', { id: id, src: qrCode });
     io.emit('message', { id: id, text: 'QR Code recebido, por favor escaneie!' });
-  });  
+
+    // Atualize o arquivo de sessões para persistir o QR code
+    const savedSessions = getSessionsFile();
+    const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
+    savedSessions[sessionIndex].qrCode = qrCode;
+    setSessionsFile(savedSessions);
+  });
 
   client.on('ready', () => {
     io.emit('ready', { id: id });
