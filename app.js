@@ -157,6 +157,7 @@ io.on('connection', (socket) => {
   init(socket);
 
   socket.on('create-session', (data) => {
+    console.log('Criando sessão: ' + data.id);
     createSession(data.id, data.description);
   });
 });
@@ -198,6 +199,27 @@ app.post('/send-message', async (req, res) => {
         response: err
       });
     });
+});
+
+// Rota para criar uma nova sessão
+app.post('/create-session', (req, res) => {
+  const id = req.body.id;
+  const description = req.body.description;
+  const webhooks = req.body.webhooks;
+
+  if (!id || !description || !webhooks || webhooks.length !== 4) {
+    return res.status(422).json({
+      status: false,
+      message: 'Os dados da sessão são inválidos ou estão faltando.'
+    });
+  }
+
+  createSession(id, description, webhooks);
+
+  return res.status(200).json({
+    status: true,
+    message: 'Sessão criada com sucesso.'
+  });
 });
 
 // Inicia o servidor
