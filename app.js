@@ -81,9 +81,6 @@ const createSession = function(id, description, webhookUrl) {
         '--disable-gpu'
       ],
     },
-    authStrategy: new LocalAuth({
-      clientId: id
-    }),
     sessionData: {
       webhookUrl: webhookUrl // Define a URL do webhook na sessão
     }
@@ -148,6 +145,7 @@ const createSession = function(id, description, webhookUrl) {
       id: id,
       description: description,
       ready: false,
+      webhookUrl: webhookUrl // Adiciona a URL do webhook ao objeto de sessão
     });
     setSessionsFile(savedSessions);
   }
