@@ -346,6 +346,24 @@ app.post('/send-media', async (req, res) => {
   }
 });
 
+// Definir rota GET para obter o QR code de conexão
+app.get('/session/:id/qr', (req, res) => {
+  const id = req.params.id;
+  const session = sessions.find(sess => sess.id == id);
+
+  if (session && session.client.qrCode) {
+    res.status(200).json({
+      status: true,
+      qrCode: session.client.qrCode
+    });
+  } else {
+    res.status(404).json({
+      status: false,
+      message: 'Session not found or QR code not generated'
+    });
+  }
+});
+
 // Rota para buscar informações do usuário
 app.get('/user/:id', async (req, res) => {
   const id = req.params.id;
