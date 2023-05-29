@@ -112,72 +112,41 @@ const createSession = function(id, description, webhookUrl) {
     io.emit('message', { id: id, text: 'WhatsApp autenticado.' });
   });
 
-  client.on('auth_failure', function() {
-    io.emit('message', { id: id, text: 'Falha na autenticação! Reiniciando...' });
+  client.on('auth_failure', (session) => {
+    io.emit('message', { id: id, text: 'Falha na autenticação, tente novamente!' });
   });
 
   client.on('disconnected', (reason) => {
     io.emit('message', { id: id, text: 'WhatsApp desconectado!' });
+    fs.unlinkSync(SESSIONS_FILE, function(err) {
+      if (err) return console.log(err);
+      console.log('Arquivo de sessões excluído com sucesso.');
+    });
     client.destroy();
     client.initialize();
 
     const savedSessions = getSessionsFile();
     const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
-    savedSessions.splice(sessionIndex, 1);
+    savedSessions[sessionIndex].ready = false;
     setSessionsFile(savedSessions);
-
-    io.emit('remove-session', id);
   });
 
-  sessions.push({
+  client.on('message', async (msg) => {
+    io.emit('message', { id: id, text: msg.body });
+  });
+
+  const session = {
     id: id,
     description: description,
     client: client
-  });
+  }
+
+  sessions.push(session);
 
   const savedSessions = getSessionsFile();
-  const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
-
-  if (sessionIndex == -1) {
-    savedSessions.push({
-      id: id,
-      description: description,
-      ready: false,
-      webhookUrl: webhookUrl
-    });
-    setSessionsFile(savedSessions);
-  }
+  savedSessions.push({ id: id, description: description, ready: false });
+  setSessionsFile(savedSessions);
 }
-
-const init = function(socket) {
-  const savedSessions = getSessionsFile();
-
-  if (savedSessions.length > 0) {
-    if (socket) {
-      savedSessions.forEach((e, i, arr) => {
-        arr[i].ready = false;
-      });
-
-      socket.emit('init', savedSessions);
-    } else {
-      savedSessions.forEach(sess => {
-        createSession(sess.id, sess.description, sess.webhookUrl);
-      });
-    }
-  }
-}
-
-init();
-
-// Socket IO
-io.on('connection', function(socket) {
-  init(socket);
-
-  socket.on('create-session', function(data) {
-    console.log('Criar sessão: ' + data.id);
-    createSession(data.id, data.description, data.webhookUrl);
-  });
-});
 
 // Rota para criar uma sessão
 app.post('/create-session', (req, res) => {
@@ -232,14 +201,10 @@ app.delete('/delete-session/:sessionId', (req, res) => {
     });
   }
 
-  // Encerre o cliente da sessão
   const client = sessions[sessionIndex].client;
   client.destroy();
 
-  // Remova a sessão do array de sessões
   sessions.splice(sessionIndex, 1);
-
-  // Atualize o arquivo de sessões
   setSessionsFile(getSessionsFile().filter(sess => sess.id !== sessionId));
 
   res.status(200).json({
@@ -248,10 +213,8 @@ app.delete('/delete-session/:sessionId', (req, res) => {
   });
 });
 
-// Rota para enviar uma mesagem de texto
+// Rota para enviar uma mensagem de texto
 app.post('/send-message', async (req, res) => {
-  console.log(req);
-
   const sender = req.body.sender;
   const number = phoneNumberFormatter(req.body.number);
   const message = req.body.message;
@@ -262,15 +225,14 @@ app.post('/send-message', async (req, res) => {
     return res.status(422).json({
       status: false,
       message: `O remetente: ${sender} não foi encontrado!`
-    })
+    });
   }
 
   const isRegisteredNumber = await client.isRegisteredUser(number);
-
   if (!isRegisteredNumber) {
     return res.status(422).json({
       status: false,
-      message: 'O número não está registrado!'
+      message: `O número: ${number} não está registrado no WhatsApp!`
     });
   }
 
@@ -287,6 +249,192 @@ app.post('/send-message', async (req, res) => {
   });
 });
 
+// Rota para enviar uma mensagem de mídia
+app.post('/send-media', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+  const fileUrl = req.body.fileUrl;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    });
+  }
+
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: `O número: ${number} não está registrado no WhatsApp!`
+    });
+  }
+
+  const media = MessageMedia.fromUrl(fileUrl);
+
+  client.sendMessage(number, media, { caption: caption }).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
+});
+
+// Rota para enviar uma mensagem com imagem em base64
+app.post('/send-image', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+  const imageData = req.body.imageData;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    });
+  }
+
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: `O número: ${number} não está registrado no WhatsApp!`
+    });
+  }
+
+  const media = new MessageMedia('image/png', imageData);
+
+  client.sendMessage(number, media, { caption: caption }).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
+});
+
+// Rota para enviar uma mensagem com arquivo em base64
+app.post('/send-file', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+  const fileData = req.body.fileData;
+  const fileName = req.body.fileName;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    });
+  }
+
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: `O número: ${number} não está registrado no WhatsApp!`
+    });
+  }
+
+  const media = new MessageMedia.fromBase64(fileData, fileName);
+
+  client.sendMessage(number, media, { caption: caption }).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
+});
+
+// Rota para enviar uma mensagem com arquivo em anexo
+app.post('/send-attachment', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+  const attachment = req.files && req.files.attachment;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    });
+  }
+
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: `O número: ${number} não está registrado no WhatsApp!`
+    });
+  }
+
+  if (!attachment) {
+    return res.status(400).json({
+      status: false,
+      message: 'Anexo não encontrado.'
+    });
+  }
+
+  const media = new MessageMedia(attachment.mimetype, attachment.data);
+
+  client.sendMessage(number, media, { caption: caption }).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
+});
+
+// Rota para obter os contatos de uma sessão
+app.get('/contacts/:sessionId', async (req, res) => {
+  const sessionId = req.params.sessionId;
+  const session = sessions.find(sess => sess.id === sessionId);
+
+  if (!session) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada.'
+    });
+  }
+
+  const client = session.client;
+
+  const contacts = await client.getContacts();
+
+  res.status(200).json({
+    status: true,
+    contacts: contacts
+  });
+});
+
 server.listen(port, function() {
-  console.log('API em execução na porta *:' + port);
+  console.log('App rodando na porta ' + port);
 });
