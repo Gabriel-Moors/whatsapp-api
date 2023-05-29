@@ -56,7 +56,7 @@ const getSessionsFile = function() {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
 }
 
-const createSession = function(id, description, webhooks) {
+const createSession = function(id, description, webhooks, res) {
   console.log('Criando sessão: ' + id);
   const client = new Client({
     restartOnAuthFail: true,
@@ -116,7 +116,6 @@ const createSession = function(id, description, webhooks) {
     client.destroy();
     client.initialize();
 
-    // Removendo do arquivo de sessões
     const savedSessions = getSessionsFile();
     const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
     savedSessions.splice(sessionIndex, 1);
@@ -125,11 +124,9 @@ const createSession = function(id, description, webhooks) {
     io.emit('remove-session', id);
   });
 
-  // Registre os webhooks
   webhooks.forEach((url, index) => {
     client.onMessage(async (message) => {
       try {
-        // Faça o post da mensagem recebida para o webhook
         await axios.post(url, message);
       } catch (error) {
         console.error('Erro ao enviar mensagem para o webhook:', error);
@@ -137,14 +134,12 @@ const createSession = function(id, description, webhooks) {
     });
   });
 
-  // Adicione o cliente ao arquivo de sessões
   sessions.push({
     id: id,
     description: description,
     client: client
   });
 
-  // Adicionando a sessão ao arquivo
   const savedSessions = getSessionsFile();
   const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
 
@@ -178,113 +173,32 @@ const init = function(socket) {
 
 init();
 
-// Socket IO
 io.on('connection', function(socket) {
   init(socket);
 
   socket.on('create-session', function(data) {
     console.log('Criar sessão: ' + data.id);
-    createSession(data.id, data.description, data.webhooks);
+    createSession(data.id, data.description, data.webhooks, socket);
   });
 });
 
-// Rota para criar uma sessão
 app.post('/create-session', (req, res) => {
   const id = req.body.id;
   const description = req.body.description;
   const webhooks = req.body.webhooks;
 
-  // Verifica se o ID da sessão já está em uso
   const sessionExists = sessions.some(sess => sess.id === id);
   if (sessionExists) {
     return res.status(400).json({ error: 'ID de sessão já está em uso' });
   }
 
-  // Verifica se o número de webhooks é válido
   if (!Array.isArray(webhooks) || webhooks.length !== 4) {
     return res.status(400).json({ error: 'Número inválido de webhooks' });
   }
 
-  // Cria a sessão
-  createSession(id, description);
-
-  // Adiciona os webhooks à sessão
-  const session = sessions.find(sess => sess.id === id);
-  if (session) {
-    session.webhooks = webhooks;
-  }
-
-  res.json({ success: true });
-});
-
-// Rota para excluir uma sessão
-app.delete('/delete-session/:id', (req, res) => {
-  const sessionId = req.params.id;
-
-  // Procurar sessão pelo ID
-  const sessionIndex = sessions.findIndex(sess => sess.id === sessionId);
-
-  // Se a sessão existir, removê-la
-  if (sessionIndex !== -1) {
-    const removedSession = sessions.splice(sessionIndex, 1);
-    setSessionsFile(sessions);
-
-    // Encerrar a conexão do cliente
-    removedSession[0].client.destroy();
-
-    return res.status(200).json({
-      status: true,
-      message: 'Sessão excluída com sucesso.',
-      data: removedSession[0]
-    });
-  } else {
-    return res.status(404).json({
-      status: false,
-      message: 'Sessão não encontrada.'
-    });
-  }
-});
-
-// Rota para enviar mensagem de texto
-app.post('/send-message', async (req, res) => {
-  console.log(req);
-
-  const sender = req.body.sender;
-  const number = phoneNumberFormatter(req.body.number);
-  const message = req.body.message;
-
-  const client = sessions.find(sess => sess.id == sender)?.client;
-
-  // Verifique se o remetente existe e está pronto
-  if (!client) {
-    return res.status(422).json({
-      status: false,
-      message: `O remetente: ${sender} não foi encontrado!`
-    })
-  }
-
-  const isRegisteredNumber = await client.isRegisteredUser(number);
-
-  if (!isRegisteredNumber) {
-    return res.status(422).json({
-      status: false,
-      message: 'O número não está registrado.'
-    });
-  }
-
-  client.sendMessage(number, message).then(response => {
-    res.status(200).json({
-      status: true,
-      response: response
-    });
-  }).catch(err => {
-    res.status(500).json({
-      status: false,
-      response: err
-    });
-  });
+  createSession(id, description, webhooks, res);
 });
 
 server.listen(port, function() {
-  console.log('Aplicativo em execução na porta *: ' + port);
+  console.log('App rodando na porta %s', port);
 });
