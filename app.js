@@ -34,6 +34,51 @@ app.get('/sessions', (req, res) => {
   res.json(savedSessions);
 });
 
+// Rota para obter o status e o QR code de uma sessão específica
+app.get('/sessions/:sessionId', (req, res) => {
+  const sessionId = req.params.sessionId;
+  const session = sessions.find(sess => sess.id === sessionId);
+
+  if (!session) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada.'
+    });
+  }
+
+  const client = session.client;
+
+  const sessionStatus = {
+    id: session.id,
+    description: session.description,
+    ready: session.ready
+  };
+
+  if (client.qrCode) {
+    // Gera o QR code usando o conteúdo fornecido pelo cliente
+    qrcode.toDataURL(client.qrCode, (err, qrCodeData) => {
+      if (err) {
+        console.error('Erro ao gerar o QR code:', err);
+        return res.status(500).json({
+          status: false,
+          message: 'Erro ao gerar o QR code.'
+        });
+      }
+
+      sessionStatus.qrCode = qrCodeData;
+      res.status(200).json({
+        status: true,
+        session: sessionStatus
+      });
+    });
+  } else {
+    res.status(200).json({
+      status: true,
+      session: sessionStatus
+    });
+  }
+});
+
 const sessions = [];
 const SESSIONS_FILE = './whatsapp-sessions.json';
 
