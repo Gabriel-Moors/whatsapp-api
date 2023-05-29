@@ -94,15 +94,10 @@ const createSession = function(id, description, webhookUrl) {
   client.on('qr', (qr) => {
     console.log('QR RECEBIDO', qr);
     const qrCode = 'data:image/png;base64,' + qr;
-    session.qrCode = qrCode;
+    const sessionIndex = sessions.findIndex(sess => sess.id === id);
+    sessions[sessionIndex].qrCode = qrCode;
     io.emit('qr', { id: id, src: qrCode });
     io.emit('message', { id: id, text: 'QR Code recebido, por favor escaneie!' });
-
-    // Atualize o arquivo de sessões para persistir o QR code
-    const savedSessions = getSessionsFile();
-    const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
-    savedSessions[sessionIndex].qrCode = qrCode;
-    setSessionsFile(savedSessions);
   });
 
   client.on('ready', () => {
@@ -226,47 +221,79 @@ app.post('/send-message', async (req, res) => {
 
   const client = sessions.find(sess => sess.id == sender)?.client;
 
-  // Certifique-se de que o remetente exista e esteja pronto
   if (!client) {
-    return res.status(422).json({
+    return res.status(404).json({
       status: false,
-      message: `O remetente: ${sender} não foi encontrado!`
-    })
-  }
-
-  /**
-   * Verifique se o número já está registrado
-   * Copiado de app.js
-   * 
-   * Por favor, verifique app.js para mais exemplos de validações
-   * Você pode adicionar o mesmo aqui!
-   */
-  const isRegisteredNumber = await client.isRegisteredUser(number);
-
-  if (!isRegisteredNumber) {
-    return res.status(422).json({
-      status: false,
-      message: 'O número não está registrado!'
+      message: 'Sessão não encontrada.'
     });
   }
 
-  client.sendMessage(number, message).then(response => {
-    res.status(200).json({
+  try {
+    await client.sendMessage(number, message);
+
+    return res.status(200).json({
       status: true,
-      response: response
+      message: 'Mensagem enviada com sucesso.'
     });
-  }).catch(err => {
-    res.status(500).json({
+  } catch (error) {
+    return res.status(500).json({
       status: false,
-      response: err
+      message: 'Erro ao enviar a mensagem: ' + error
     });
-  });
+  }
 });
 
-// Rota para buscar o QR code de uma sessão específica
+// Rota de Envio de Mídia
+app.post('/send-media', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  if (!client) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada.'
+    });
+  }
+
+  if (!req.files || Object.keys(req.files).length === 0) {
+    return res.status(400).json({
+      status: false,
+      message: 'Nenhum arquivo foi enviado.'
+    });
+  }
+
+  try {
+    const media = new MessageMedia(
+      req.files.file.mimetype,
+      req.files.file.data.toString('base64'),
+      req.files.file.name
+    );
+
+    if (caption) {
+      await client.sendMessage(number, media, { caption: caption });
+    } else {
+      await client.sendMessage(number, media);
+    }
+
+    return res.status(200).json({
+      status: true,
+      message: 'Mídia enviada com sucesso.'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: false,
+      message: 'Erro ao enviar a mídia: ' + error
+    });
+  }
+});
+
+// Rota de Geração de QR Code
 app.get('/qr-code/:sessionId', (req, res) => {
   const sessionId = req.params.sessionId;
-  const session = sessions.find(sess => sess.id === sessionId);
+  const session = sessions.find(sess => sess.id == sessionId);
 
   if (!session) {
     return res.status(404).json({
@@ -275,30 +302,16 @@ app.get('/qr-code/:sessionId', (req, res) => {
     });
   }
 
-  const client = session.client;
-
-  if (!client) {
-    return res.status(404).json({
-      status: false,
-      message: 'Cliente não encontrado para esta sessão.'
-    });
-  }
-
-  const qrCode = client.qrCode;
-  
-  if (!qrCode) {
+  if (!session.qrCode) {
     return res.status(404).json({
       status: false,
       message: 'QR code não encontrado para esta sessão.'
     });
   }
 
-  return res.status(200).json({
-    status: true,
-    qrCode: qrCode
-  });
+  res.send(session.qrCode);
 });
 
 server.listen(port, function() {
-  console.log('API em execução na porta *: ' + port);
+  console.log('App ouvindo na porta ' + port);
 });
