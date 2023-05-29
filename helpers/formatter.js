@@ -1,11 +1,24 @@
 const phoneNumberFormatter = function(number) {
-  // 1. Menghilangkan karakter selain angka
   let formatted = number.replace(/\D/g, '');
 
-  // 2. Menghilangkan angka 0 di depan (prefix)
-  //    Kemudian diganti dengan 62
+  // Verifica se o número começa com zero (prefixo)
   if (formatted.startsWith('0')) {
-    formatted = '62' + formatted.substr(1);
+    // Remove o zero e substitui por "55" se o número tiver 10 dígitos (móvel)
+    if (formatted.length === 10) {
+      formatted = '55' + formatted.substr(1);
+    }
+    // Remove o zero e substitui por "55" se o número tiver 11 dígitos (fixo ou móvel)
+    else if (formatted.length === 11) {
+      formatted = '55' + formatted.substr(1);
+    }
+  }
+  // Adiciona "55" se o número não tiver o DDI e tiver 10 dígitos (móvel)
+  else if (formatted.length === 10) {
+    formatted = '55' + formatted;
+  }
+  // Adiciona "55" se o número não tiver o DDI e tiver 11 dígitos (fixo ou móvel)
+  else if (formatted.length === 11) {
+    formatted = '55' + formatted;
   }
 
   if (!formatted.endsWith('@c.us')) {
