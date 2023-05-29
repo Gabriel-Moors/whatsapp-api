@@ -23,7 +23,7 @@ app.get('/', (req, res) => {
 });
 
 const SESSIONS_FILE = './whatsapp-sessions.json';
-let sessions = []; // Declaração da variável sessions
+let sessions = [];
 
 // Verifica se o arquivo de sessões existe, caso contrário, cria um novo
 const createSessionsFileIfNotExists = () => {
@@ -229,31 +229,108 @@ app.delete('/delete-session/:id', (req, res) => {
   const id = req.params.id;
 
   const sessionIndex = sessions.findIndex(sess => sess.id == id);
-  if (sessionIndex === -1) {
-    return res.status(404).json({
+  if (sessionIndex == -1) {
+    return res.status(422).json({
       status: false,
-      message: 'A sessão não foi encontrada.'
+      message: 'A sessão não existe.'
     });
   }
 
+  sessions.splice(sessionIndex, 1);
+
   const savedSessions = getSessionsFile();
   const savedSessionIndex = savedSessions.findIndex(sess => sess.id == id);
-
   savedSessions.splice(savedSessionIndex, 1);
   setSessionsFile(savedSessions);
 
-  sessions[sessionIndex].client.destroy();
-  sessions.splice(sessionIndex, 1);
+  return res.status(200).json({
+    status: true,
+    message: 'Sessão deletada com sucesso.'
+  });
+});
 
-  io.emit('remove-session', id);
+// Rota para enviar arquivo de mídia
+app.post('/send-media', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const caption = req.body.caption;
+  const fileUrl = req.body.file;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    });
+  }
+
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: 'O número não está registrado'
+    });
+  }
+
+  const media = MessageMedia.fromUrl(fileUrl);
+
+  client.sendMessage(number, media, { caption: caption })
+    .then(response => {
+      res.status(200).json({
+        status: true,
+        response: response
+      });
+    })
+    .catch(err => {
+      res.status(500).json({
+        status: false,
+        response: err
+      });
+    });
+});
+
+// Rota para obter informações de uma sessão
+app.get('/session/:id', (req, res) => {
+  const id = req.params.id;
+
+  const session = sessions.find(sess => sess.id == id);
+
+  if (!session) {
+    return res.status(422).json({
+      status: false,
+      message: 'A sessão não existe.'
+    });
+  }
 
   return res.status(200).json({
     status: true,
-    message: 'Sessão excluída com sucesso.'
+    session: {
+      id: session.id,
+      description: session.description,
+      ready: session.client?.isConnected() || false,
+      webhooks: session.webhooks
+    }
+  });
+});
+
+// Rota para obter todas as sessões
+app.get('/sessions', (req, res) => {
+  const savedSessions = getSessionsFile();
+
+  return res.status(200).json({
+    status: true,
+    sessions: savedSessions.map(session => ({
+      id: session.id,
+      description: session.description,
+      ready: sessions.find(sess => sess.id == session.id)?.client?.isConnected() || false,
+      webhooks: session.webhooks
+    }))
   });
 });
 
 // Inicia o servidor
-server.listen(port, () => {
-  console.log('Aplicação em execução em *: ' + port);
+server.listen(port, function () {
+  console.log('App está executando na porta ' + port);
 });
