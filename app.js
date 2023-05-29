@@ -64,7 +64,7 @@ const getSessionsFile = function() {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
 }
 
-const createSession = function(id, description) {
+const createSession = function(id, description, webhookUrl) {
   console.log('Criando sessão: ' + id);
   const client = new Client({
     restartOnAuthFail: true,
@@ -83,7 +83,10 @@ const createSession = function(id, description) {
     },
     authStrategy: new LocalAuth({
       clientId: id
-    })
+    }),
+    sessionData: {
+      webhookUrl: webhookUrl // Define a URL do webhook na sessão
+    }
   });
 
   client.initialize();
@@ -182,8 +185,8 @@ io.on('connection', function(socket) {
   init(socket);
 
   socket.on('create-session', function(data) {
-    console.log('Create session: ' + data.id);
-    createSession(data.id, data.description);
+    console.log('Criar sessão: ' + data.id);
+    createSession(data.id, data.description, data.webhookUrl);
   });
 });
 
