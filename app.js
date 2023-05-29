@@ -18,6 +18,14 @@ app.use(express.urlencoded({
   extended: true
 }));
 
+/**
+ * COM BASE EM MUITAS PERGUNTAS
+ * Na verdade, já mencionado nos tutoriais
+ * 
+ * Os dois middlewares acima lidam apenas com dados json e urlencode (x-www-form-urlencoded)
+ * Portanto, precisamos adicionar um middleware extra para lidar com form-data
+ * Aqui podemos usar o express-fileupload
+ */
 app.use(fileUpload({
   debug: false
 }));
@@ -56,7 +64,7 @@ const getSessionsFile = function() {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
 }
 
-const createSession = function(id, description, webhooks, res) {
+const createSession = function(id, description) {
   console.log('Criando sessão: ' + id);
   const client = new Client({
     restartOnAuthFail: true,
@@ -69,7 +77,7 @@ const createSession = function(id, description, webhooks, res) {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--single-process', // <- este não funciona no Windows
+        '--single-process', // <- essa opção não funciona no Windows
         '--disable-gpu'
       ],
     },
@@ -83,18 +91,14 @@ const createSession = function(id, description, webhooks, res) {
   client.on('qr', (qr) => {
     console.log('QR RECEBIDO', qr);
     qrcode.toDataURL(qr, (err, url) => {
-      const sessionData = {
-        id: id,
-        description: description,
-        qrCode: url // Adiciona o QR code à resposta JSON
-      };
-      res.json(sessionData);
+      io.emit('qr', { id: id, src: url });
+      io.emit('message', { id: id, text: 'QR Code recebido, por favor, escaneie!' });
     });
-  });  
+  });
 
   client.on('ready', () => {
     io.emit('ready', { id: id });
-    io.emit('message', { id: id, text: 'Whatsapp pronto!' });
+    io.emit('message', { id: id, text: 'WhatsApp está pronto!' });
 
     const savedSessions = getSessionsFile();
     const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
@@ -104,7 +108,7 @@ const createSession = function(id, description, webhooks, res) {
 
   client.on('authenticated', () => {
     io.emit('authenticated', { id: id });
-    io.emit('message', { id: id, text: 'Whatsapp autenticado!' });
+    io.emit('message', { id: id, text: 'WhatsApp autenticado!' });
   });
 
   client.on('auth_failure', function() {
@@ -112,10 +116,11 @@ const createSession = function(id, description, webhooks, res) {
   });
 
   client.on('disconnected', (reason) => {
-    io.emit('message', { id: id, text: 'Whatsapp desconectado!' });
+    io.emit('message', { id: id, text: 'WhatsApp desconectado!' });
     client.destroy();
     client.initialize();
 
+    // Remover da lista de sessões
     const savedSessions = getSessionsFile();
     const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
     savedSessions.splice(sessionIndex, 1);
@@ -124,22 +129,14 @@ const createSession = function(id, description, webhooks, res) {
     io.emit('remove-session', id);
   });
 
-  webhooks.forEach((url, index) => {
-    client.onMessage(async (message) => {
-      try {
-        await axios.post(url, message);
-      } catch (error) {
-        console.error('Erro ao enviar mensagem para o webhook:', error);
-      }
-    });
-  });
-
+  // Adicionar cliente às sessões
   sessions.push({
     id: id,
     description: description,
     client: client
   });
 
+  // Adicionar sessão ao arquivo
   const savedSessions = getSessionsFile();
   const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
 
@@ -158,6 +155,13 @@ const init = function(socket) {
 
   if (savedSessions.length > 0) {
     if (socket) {
+      /**
+       * Na primeira execução (por exemplo, reiniciando o servidor), nosso cliente ainda não está pronto!
+       * Ele levará algum tempo para autenticar.
+       * 
+       * Portanto, para evitar confusão com o status 'ready'
+       * Definimos como FALSE para essa condição
+       */
       savedSessions.forEach((e, i, arr) => {
         arr[i].ready = false;
       });
@@ -165,7 +169,7 @@ const init = function(socket) {
       socket.emit('init', savedSessions);
     } else {
       savedSessions.forEach(sess => {
-        createSession(sess.id, sess.description, sess.webhooks);
+        createSession(sess.id, sess.description);
       });
     }
   }
@@ -173,32 +177,63 @@ const init = function(socket) {
 
 init();
 
+// Socket IO
 io.on('connection', function(socket) {
   init(socket);
 
   socket.on('create-session', function(data) {
     console.log('Criar sessão: ' + data.id);
-    createSession(data.id, data.description, data.webhooks, socket);
+    createSession(data.id, data.description);
   });
 });
 
-app.post('/create-session', (req, res) => {
-  const id = req.body.id;
-  const description = req.body.description;
-  const webhooks = req.body.webhooks;
+// Enviar mensagem
+app.post('/send-message', async (req, res) => {
+  console.log(req);
 
-  const sessionExists = sessions.some(sess => sess.id === id);
-  if (sessionExists) {
-    return res.status(400).json({ error: 'ID de sessão já está em uso' });
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const message = req.body.message;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  // Certificar-se de que o remetente existe e está pronto
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    })
   }
 
-  if (!Array.isArray(webhooks) || webhooks.length !== 4) {
-    return res.status(400).json({ error: 'Número inválido de webhooks' });
+  /**
+   * Verificar se o número já está registrado
+   * Copiado do app.js
+   * 
+   * Por favor, verifique o app.js para mais exemplos de validações
+   * Você pode adicionar as mesmas aqui!
+   */
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: 'O número não está registrado'
+    });
   }
 
-  createSession(id, description, webhooks, res);
+  client.sendMessage(number, message).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
 });
 
 server.listen(port, function() {
-  console.log('App rodando na porta %s', port);
+  console.log('Aplicação em execução em *: ' + port);
 });
