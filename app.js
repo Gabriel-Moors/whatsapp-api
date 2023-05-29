@@ -209,16 +209,20 @@ app.delete('/delete-session/:sessionId', (req, res) => {
   client.destroy();
 
   // Remova a sessão do array de sessões
-  sessions.splice(sessionIndex, 1);
+  const deletedSession = sessions.splice(sessionIndex, 1)[0];
 
   // Atualize o arquivo de sessões
   setSessionsFile(getSessionsFile().filter(sess => sess.id !== sessionId));
+
+  // Emita um evento de mensagem para os clientes conectados
+  io.emit('message', { text: `A sessão '${deletedSession.description}' foi deletada.` });
 
   res.status(200).json({
     status: true,
     message: 'Sessão deletada com sucesso.'
   });
 });
+
 
 // Rota de Envio de Mensagem de Texto
 app.post('/send-message', async (req, res) => {
