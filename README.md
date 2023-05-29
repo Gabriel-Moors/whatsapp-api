@@ -35,7 +35,7 @@ Aqui está um passo a passo detalhado:
      ```  
    - Certifique-se de que ambas as versões são exibidas corretamente, o que indicará que o Node.js e o npm estão instalados com sucesso.
 
-5. Criar um diretório para o projeto:
+5. Criar o projeto no diretório e instalar todas as dependências:
      ```
      git clone https://github.com/Gabriel-Moors/whatsapp-api.git && cd whatsapp-api && npm install
      ```
