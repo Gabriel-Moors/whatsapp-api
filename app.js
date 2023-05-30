@@ -15,22 +15,18 @@ const server = http.createServer(app);
 const io = socketIO(server);
 
 app.use(express.json());
-app.use(express.urlencoded({
-  extended: true
-}));
+app.use(express.urlencoded({ extended: true }));
+app.use(fileUpload({ debug: false }));
 
-app.use(fileUpload({
-  debug: false
-}));
-
+// Rota principal
 app.get('/', (req, res) => {
-  res.sendFile('index.html', {
-    root: __dirname
-  });
+  res.sendFile('index.html', { root: __dirname });
 });
 
+// Arquivo de sessões
 const SESSIONS_FILE = './whatsapp-sessions.json';
 
+// Cria o arquivo de sessões se não existir
 const createSessionsFileIfNotExists = function() {
   if (!fs.existsSync(SESSIONS_FILE)) {
     try {
@@ -42,8 +38,7 @@ const createSessionsFileIfNotExists = function() {
   }
 };
 
-createSessionsFileIfNotExists();
-
+// Salva as sessões no arquivo
 const setSessionsFile = function(sessions) {
   fs.writeFile(SESSIONS_FILE, JSON.stringify(sessions), function(err) {
     if (err) {
@@ -52,10 +47,12 @@ const setSessionsFile = function(sessions) {
   });
 };
 
+// Obtém as sessões do arquivo
 const getSessionsFile = function() {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
 };
 
+// Classe de Sessão
 class Session {
   constructor(id, description) {
     this.id = id;
@@ -72,19 +69,15 @@ class Session {
   addWebhook(webhook) {
     this.webhooks.push(webhook);
   }
-
-  removeWebhook(webhook) {
-    const index = this.webhooks.indexOf(webhook);
-    if (index !== -1) {
-      this.webhooks.splice(index, 1);
-    }
-  }
 }
 
+// Array de sessões
 const sessions = [];
 
+// Cria uma nova sessão
 const createSession = function(id, description, webhooks) {
   console.log('Criando sessão: ' + id);
+
   const session = new Session(id, description);
   webhooks.forEach(webhook => {
     session.addWebhook(webhook);
@@ -112,6 +105,7 @@ const createSession = function(id, description, webhooks) {
 
   client.initialize();
 
+  // Evento de QR Code
   client.on('qr', (qr) => {
     console.log('QR RECEBIDO', qr);
     qrcode.toDataURL(qr, (err, url) => {
@@ -120,6 +114,7 @@ const createSession = function(id, description, webhooks) {
     });
   });
 
+  // Evento de conexão pronta
   client.on('ready', () => {
     io.emit('ready', { id: id });
     io.emit('message', { id: id, text: 'WhatsApp está pronto!' });
@@ -130,15 +125,18 @@ const createSession = function(id, description, webhooks) {
     setSessionsFile(savedSessions);
   });
 
+  // Evento de autenticação
   client.on('authenticated', () => {
     io.emit('authenticated', { id: id });
     io.emit('message', { id: id, text: 'WhatsApp está autenticado!' });
   });
 
+  // Evento de falha na autenticação
   client.on('auth_failure', function() {
     io.emit('message', { id: id, text: 'Falha na autenticação, reiniciando...' });
   });
 
+  // Evento de desconexão
   client.on('disconnected', (reason) => {
     io.emit('message', { id: id, text: 'WhatsApp está desconectado!' });
     client.destroy();
@@ -164,6 +162,7 @@ const createSession = function(id, description, webhooks) {
   }
 };
 
+// Inicialização das sessões
 const init = function(socket) {
   const savedSessions = getSessionsFile();
 
@@ -182,17 +181,19 @@ const init = function(socket) {
   }
 };
 
-init();
-
+// Inicialização do socket
 io.on('connection', function(socket) {
   init(socket);
 
+  // Criação de sessão
   socket.on('create-session', function(data) {
     console.log('Criar sessão: ' + data.id);
     createSession(data.id, data.description, data.webhooks);
   });
 });
 
+// Inicialização do servidor
 server.listen(port, function() {
+  createSessionsFileIfNotExists();
   console.log('Aplicação rodando em *: ' + port);
 });
