@@ -235,16 +235,29 @@ app.delete('/delete-session/:sessionId', (req, res) => {
 
   return res.status(200).json({
     status: true,
-    message: 'Sessão deletada com sucesso',
+    message: 'Sessão excluída com sucesso',
   });
 });
 
-// ATUALIZAR WEBHOOKS
-app.post('/update-webhooks', (req, res) => {
-  const sessionId = req.body.sessionId;
-  const webhooks = req.body.webhooks;
+// LISTAR SESSÕES
+app.get('/sessions', (req, res) => {
+  return res.status(200).json({
+    status: true,
+    sessions: sessions.map(sess => ({
+      id: sess.id,
+      description: sess.description,
+      ready: sess.client.isReady,
+    })),
+  });
+});
 
-  const session = sessions.find(sess => sess.id === sessionId);
+// ENVIAR MENSAGEM
+app.post('/send-message', (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const message = req.body.message;
+
+  const session = sessions.find(sess => sess.id === sender);
 
   if (!session) {
     return res.status(404).json({
@@ -253,58 +266,166 @@ app.post('/update-webhooks', (req, res) => {
     });
   }
 
-  session.webhooks = webhooks;
-
-  const savedSessions = getSessionsFile();
-  const sessionIndex = savedSessions.findIndex(sess => sess.id === sessionId);
-  savedSessions[sessionIndex].webhooks = webhooks;
-  setSessionsFile(savedSessions);
-
-  return res.status(200).json({
-    status: true,
-    message: 'Webhooks atualizados com sucesso',
+  session.client.sendMessage(number, message).then(response => {
+    return res.status(200).json({
+      status: true,
+      response: response,
+    });
+  }).catch(err => {
+    return res.status(500).json({
+      status: false,
+      message: err,
+    });
   });
 });
 
-// ENVIO DE MENSAGEM DE TEXTO
-app.post('/send-message', async (req, res) => {
+// ENVIAR MÍDIA
+app.post('/send-media', (req, res) => {
   const sender = req.body.sender;
   const number = phoneNumberFormatter(req.body.number);
-  const message = req.body.message;
+  const caption = req.body.caption;
 
-  const client = sessions.find(sess => sess.id === sender)?.client;
+  const file = req.files.file;
 
-  if (!client) {
-    return res.status(422).json({
+  const session = sessions.find(sess => sess.id === sender);
+
+  if (!session) {
+    return res.status(404).json({
       status: false,
-      message: `O remetente ${sender} não foi encontrado!`
+      message: 'Sessão não encontrada',
     });
   }
 
-  const isRegisteredNumber = await client.isRegisteredUser(number);
+  const media = new MessageMedia(file.mimetype, file.data.toString('base64'), file.name);
 
-  if (!isRegisteredNumber) {
-    return res.status(422).json({
+  session.client.sendMessage(number, media, { caption: caption }).then(response => {
+    return res.status(200).json({
+      status: true,
+      response: response,
+    });
+  }).catch(err => {
+    return res.status(500).json({
       status: false,
-      message: 'O número não está registrado'
+      message: err,
+    });
+  });
+});
+
+// ENVIAR CONTATO
+app.post('/send-contact', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const contactId = req.body.contactId;
+
+  const session = sessions.find(sess => sess.id === sender);
+
+  if (!session) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada',
     });
   }
 
-  client.sendMessage(number, message)
-    .then(response => {
-      res.status(200).json({
-        status: true,
-        response: response
-      });
-    })
-    .catch(err => {
-      res.status(500).json({
-        status: false,
-        response: err
-      });
+  const contact = await session.client.getContactById(contactId);
+
+  session.client.sendMessage(number, contact.vcard).then(response => {
+    return res.status(200).json({
+      status: true,
+      response: response,
     });
+  }).catch(err => {
+    return res.status(500).json({
+      status: false,
+      message: err,
+    });
+  });
+});
+
+// ENVIAR LOCALIZAÇÃO
+app.post('/send-location', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const lat = req.body.lat;
+  const long = req.body.long;
+  const name = req.body.name;
+
+  const session = sessions.find(sess => sess.id === sender);
+
+  if (!session) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada',
+    });
+  }
+
+  const location = new Location(lat, long, name);
+
+  session.client.sendMessage(number, location).then(response => {
+    return res.status(200).json({
+      status: true,
+      response: response,
+    });
+  }).catch(err => {
+    return res.status(500).json({
+      status: false,
+      message: err,
+    });
+  });
+});
+
+// ENVIAR ARQUIVO
+app.post('/send-file', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+
+  const file = req.files.file;
+
+  const session = sessions.find(sess => sess.id === sender);
+
+  if (!session) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada',
+    });
+  }
+
+  const media = new MessageMedia(file.mimetype, file.data.toString('base64'), file.name);
+
+  session.client.sendFile(number, media).then(response => {
+    return res.status(200).json({
+      status: true,
+      response: response,
+    });
+  }).catch(err => {
+    return res.status(500).json({
+      status: false,
+      message: err,
+    });
+  });
+});
+
+// OBTER INFORMAÇÕES DO CONTATO
+app.get('/get-contact/:number', async (req, res) => {
+  const sender = req.query.sender;
+  const number = phoneNumberFormatter(req.params.number);
+
+  const session = sessions.find(sess => sess.id === sender);
+
+  if (!session) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada',
+    });
+  }
+
+  const contact = await session.client.getNumberProfile(number);
+
+  return res.status(200).json({
+    status: true,
+    contact: contact,
+  });
 });
 
 server.listen(port, function () {
-  console.log(`Servidor em execução na porta ${port}`);
+  console.log('App rodando na porta *:' + port);
 });
