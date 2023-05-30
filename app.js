@@ -78,10 +78,18 @@ const createSession = function (id, description, webhooks) {
 
   client.on('qr', (qr) => {
     console.log('QR RECEBIDO:', qr);
-    qrcode.toDataURL(qr, (err, url) => {
-      io.emit('qr', { id: id, src: url });
-      io.emit('message', { id: id, text: 'QR Code recebido, faça a leitura!' });
-    });
+    if (typeof qr === 'string') {
+      qrcode.toDataURL(qr, (err, url) => {
+        if (err) {
+          console.error('Erro ao gerar o código QR:', err);
+          return;
+        }
+        io.emit('qr', { id: id, src: url });
+        io.emit('message', { id: id, text: 'QR Code recebido, faça a leitura!' });
+      });
+    } else {
+      console.error('QR code inválido:', qr);
+    }
   });
 
   client.on('ready', () => {
@@ -232,29 +240,12 @@ app.post('/create-session', async (req, res) => {
 
   createSession(id, description, webhooks);
 
-  const qrCodeDataUrl = await new Promise((resolve, reject) => {
-    const session = sessions.find(sess => sess.id === id);
-    if (session) {
-      qrcode.toDataURL(session.client.qrCode, (err, url) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(url);
-        }
-      });
-    } else {
-      reject(new Error('Sessão não encontrada'));
-    }
-  });
-
-  res.status(200).json({
+  return res.status(200).json({
     status: true,
-    message: 'Sessão criada com sucesso',
-    id: id,
-    qrCode: qrCodeDataUrl
+    message: 'Sessão criada com sucesso'
   });
 });
 
 server.listen(port, function () {
-  console.log('Aplicativo sendo executado em *:', port);
+  console.log(`Servidor em execução na porta ${port}`);
 });
