@@ -23,6 +23,14 @@ app.get('/', (req, res) => {
   res.sendFile('index.html', { root: __dirname });
 });
 
+// Rota para criar uma nova sessão
+app.post('/create-session', (req, res) => {
+  const { id, description, webhooks } = req.body;
+  console.log('Criar sessão: ' + id);
+  createSession(id, description, webhooks);
+  res.sendStatus(200);
+});
+
 // Arquivo de sessões
 const SESSIONS_FILE = './whatsapp-sessions.json';
 
@@ -114,7 +122,7 @@ const createSession = function(id, description, webhooks) {
     });
   });
 
-  // Evento de conexão pronta
+  // Evento de WhatsApp pronto
   client.on('ready', () => {
     io.emit('ready', { id: id });
     io.emit('message', { id: id, text: 'WhatsApp está pronto!' });
