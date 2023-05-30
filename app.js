@@ -52,7 +52,7 @@ const getSessionsFile = function () {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
 };
 
-const createSession = function (id, description) {
+const createSession = function (id, description, webhooks) {
   console.log('Criando sessão:', id);
   const client = new Client({
     restartOnAuthFail: true,
@@ -120,7 +120,7 @@ const createSession = function (id, description) {
     id: id,
     description: description,
     client: client,
-    webhooks: []
+    webhooks: webhooks
   });
 
   const savedSessions = getSessionsFile();
@@ -131,7 +131,7 @@ const createSession = function (id, description) {
       id: id,
       description: description,
       ready: false,
-      webhooks: []
+      webhooks: webhooks
     });
     setSessionsFile(savedSessions);
   }
@@ -149,7 +149,7 @@ const init = function (socket) {
       socket.emit('init', savedSessions);
     } else {
       savedSessions.forEach(sess => {
-        createSession(sess.id, sess.description);
+        createSession(sess.id, sess.description, sess.webhooks);
       });
     }
   }
@@ -162,7 +162,7 @@ io.on('connection', function (socket) {
 
   socket.on('create-session', function (data) {
     console.log('Criar sessão:', data.id);
-    createSession(data.id, data.description);
+    createSession(data.id, data.description, data.webhooks);
   });
 });
 
@@ -204,27 +204,54 @@ app.post('/send-message', async (req, res) => {
     });
 });
 
-app.post('/create-session', (req, res) => {
+app.post('/create-session', async (req, res) => {
   const id = req.body.id;
   const description = req.body.description;
+  const webhooks = req.body.webhooks;
 
-  createSession(id, description);
-
-  const client = sessions.find(sess => sess.id === id)?.client;
-
-  if (!client) {
+  if (!id || !description || !webhooks) {
     return res.status(422).json({
       status: false,
-      message: `A sessão ${id} não foi criada corretamente.`
+      message: 'Os parâmetros id, description e webhooks são obrigatórios'
     });
   }
 
-  const qrCode = client.base64EncodedAuthInfo();
+  if (sessions.some(sess => sess.id === id)) {
+    return res.status(422).json({
+      status: false,
+      message: 'Já existe uma sessão com o mesmo ID'
+    });
+  }
 
-  res.json({
+  if (sessions.length >= 5) {
+    return res.status(422).json({
+      status: false,
+      message: 'O número máximo de sessões foi atingido'
+    });
+  }
+
+  createSession(id, description, webhooks);
+
+  const qrCodeDataUrl = await new Promise((resolve, reject) => {
+    const session = sessions.find(sess => sess.id === id);
+    if (session) {
+      qrcode.toDataURL(session.client.qrCode, (err, url) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(url);
+        }
+      });
+    } else {
+      reject(new Error('Sessão não encontrada'));
+    }
+  });
+
+  res.status(200).json({
     status: true,
-    message: `Sessão ${id} criada com sucesso!`,
-    qrCode: qrCode
+    message: 'Sessão criada com sucesso',
+    id: id,
+    qrCode: qrCodeDataUrl
   });
 });
 
