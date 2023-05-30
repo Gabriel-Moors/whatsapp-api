@@ -240,9 +240,26 @@ app.post('/create-session', async (req, res) => {
 
   createSession(id, description, webhooks);
 
-  return res.status(200).json({
+  const qrCodeDataUrl = await new Promise((resolve, reject) => {
+    const session = sessions.find(sess => sess.id === id);
+    if (session) {
+      qrcode.toDataURL(session.client.qrCode, (err, url) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(url);
+        }
+      });
+    } else {
+      reject(new Error('Sessão não encontrada'));
+    }
+  });
+
+  res.status(200).json({
     status: true,
-    message: 'Sessão criada com sucesso'
+    message: 'Sessão criada com sucesso',
+    id: id,
+    qrCode: qrCodeDataUrl
   });
 });
 
