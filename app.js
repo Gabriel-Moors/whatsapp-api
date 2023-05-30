@@ -35,7 +35,7 @@ const createSessionsFileIfNotExists = () => {
       console.log('Falha ao criar o arquivo de sessões: ', err);
     }
   }
-}
+};
 
 createSessionsFileIfNotExists();
 
@@ -46,12 +46,12 @@ const setSessionsFile = (sessions) => {
       console.log(err);
     }
   });
-}
+};
 
 // Retorna as sessões do arquivo
 const getSessionsFile = () => {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
-}
+};
 
 // Cria uma nova sessão
 const createSession = (id, description, webhooks) => {
@@ -71,9 +71,9 @@ const createSession = (id, description, webhooks) => {
         '--disable-gpu'
       ],
     },
-    authStrategy: new LocalAuth({
-      clientId: id
-    })
+    session: id,
+    authSessions: SESSIONS_FILE,
+    qrTimeoutMs: 0,
   });
 
   client.initialize();
@@ -86,36 +86,30 @@ const createSession = (id, description, webhooks) => {
     });
   });
 
-  client.on('ready', () => {
-    io.emit('ready', { id: id });
-    io.emit('message', { id: id, text: 'Whatsapp está pronto!' });
-
+  client.on('authenticated', (session) => {
+    console.log('Autenticado com sucesso');
     const savedSessions = getSessionsFile();
-    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
+    const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
     savedSessions[sessionIndex].ready = true;
     setSessionsFile(savedSessions);
   });
 
-  client.on('authenticated', () => {
-    io.emit('authenticated', { id: id });
-    io.emit('message', { id: id, text: 'Whatsapp está autenticado!' });
-  });
-
-  client.on('auth_failure', () => {
-    io.emit('message', { id: id, text: 'Falha na autenticação, reiniciando...' });
+  client.on('auth_failure', (session) => {
+    console.log('Falha na autenticação do WhatsApp');
+    io.emit('message', { id: id, text: 'Falha na autenticação do WhatsApp, verifique o código QR e tente novamente.' });
   });
 
   client.on('disconnected', (reason) => {
-    io.emit('message', { id: id, text: 'Whatsapp está desconectado!' });
+    console.log('WhatsApp desconectado: ' + reason);
+    io.emit('message', { id: id, text: 'WhatsApp está desconectado!' });
     client.destroy();
-    client.initialize();
-
     const savedSessions = getSessionsFile();
-    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
-    savedSessions.splice(sessionIndex, 1);
-    setSessionsFile(savedSessions);
-
-    io.emit('remove-session', id);
+    const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
+    if (sessionIndex !== -1) {
+      savedSessions.splice(sessionIndex, 1);
+      setSessionsFile(savedSessions);
+      io.emit('remove-session', id);
+    }
   });
 
   sessions.push({
@@ -126,9 +120,9 @@ const createSession = (id, description, webhooks) => {
   });
 
   const savedSessions = getSessionsFile();
-  const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
+  const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
 
-  if (sessionIndex == -1) {
+  if (sessionIndex === -1) {
     savedSessions.push({
       id: id,
       description: description,
@@ -137,7 +131,7 @@ const createSession = (id, description, webhooks) => {
     });
     setSessionsFile(savedSessions);
   }
-}
+};
 
 // Inicializa as sessões salvas
 const init = (socket) => {
@@ -152,7 +146,7 @@ const init = (socket) => {
       socket.emit('init', savedSessions);
     }
   }
-}
+};
 
 // Inicializa o socket
 io.on('connection', (socket) => {
@@ -170,7 +164,8 @@ app.post('/send-message', async (req, res) => {
   const number = phoneNumberFormatter(req.body.number);
   const message = req.body.message;
 
-  const client = sessions.find(sess => sess.id == sender)?.client;
+  const session = sessions.find(sess => sess.id === sender);
+  const client = session ? session.client : null;
 
   if (!client) {
     return res.status(422).json({
@@ -228,8 +223,8 @@ app.post('/create-session', (req, res) => {
 app.delete('/delete-session/:id', (req, res) => {
   const id = req.params.id;
 
-  const sessionIndex = sessions.findIndex(sess => sess.id == id);
-  if (sessionIndex == -1) {
+  const sessionIndex = sessions.findIndex(sess => sess.id === id);
+  if (sessionIndex === -1) {
     return res.status(422).json({
       status: false,
       message: 'A sessão não existe.'
@@ -239,7 +234,7 @@ app.delete('/delete-session/:id', (req, res) => {
   sessions.splice(sessionIndex, 1);
 
   const savedSessions = getSessionsFile();
-  const savedSessionIndex = savedSessions.findIndex(sess => sess.id == id);
+  const savedSessionIndex = savedSessions.findIndex(sess => sess.id === id);
   savedSessions.splice(savedSessionIndex, 1);
   setSessionsFile(savedSessions);
 
@@ -256,7 +251,8 @@ app.post('/send-media', async (req, res) => {
   const caption = req.body.caption;
   const fileUrl = req.body.file;
 
-  const client = sessions.find(sess => sess.id == sender)?.client;
+  const session = sessions.find(sess => sess.id === sender);
+  const client = session ? session.client : null;
 
   if (!client) {
     return res.status(422).json({
@@ -295,7 +291,7 @@ app.post('/send-media', async (req, res) => {
 app.get('/session/:id', (req, res) => {
   const id = req.params.id;
 
-  const session = sessions.find(sess => sess.id == id);
+  const session = sessions.find(sess => sess.id === id);
 
   if (!session) {
     return res.status(422).json({
@@ -324,7 +320,7 @@ app.get('/sessions', (req, res) => {
     sessions: savedSessions.map(session => ({
       id: session.id,
       description: session.description,
-      ready: sessions.find(sess => sess.id == session.id)?.client?.isConnected() || false,
+      ready: sessions.find(sess => sess.id === session.id)?.client?.isConnected() || false,
       webhooks: session.webhooks
     }))
   });
