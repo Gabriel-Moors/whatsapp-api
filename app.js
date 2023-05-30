@@ -4,14 +4,16 @@ const socketIO = require('socket.io');
 const qrcode = require('qrcode');
 const http = require('http');
 const fs = require('fs');
-const { phoneNumberFormatter } = require('./helpers/formatter');
 const fileUpload = require('express-fileupload');
 const axios = require('axios');
-const port = process.env.PORT || 80;
+const { phoneNumberFormatter } = require('./helpers/formatter');
 
+const port = process.env.PORT || 80;
+const SESSIONS_FILE = './whatsapp-sessions.json';
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
+const sessions = [];
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -22,9 +24,6 @@ app.get('/', (req, res) => {
   res.sendFile('index.html', { root: __dirname });
 });
 
-const SESSIONS_FILE = './whatsapp-sessions.json';
-let sessions = [];
-
 // Verifica se o arquivo de sessões existe, caso contrário, cria um novo
 const createSessionsFileIfNotExists = () => {
   if (!fs.existsSync(SESSIONS_FILE)) {
@@ -32,12 +31,10 @@ const createSessionsFileIfNotExists = () => {
       fs.writeFileSync(SESSIONS_FILE, JSON.stringify([]));
       console.log('Arquivo de sessões criado com sucesso.');
     } catch (err) {
-      console.log('Falha ao criar o arquivo de sessões: ', err);
+      console.log('Falha ao criar o arquivo de sessões:', err);
     }
   }
-}
-
-createSessionsFileIfNotExists();
+};
 
 // Salva as sessões no arquivo
 const setSessionsFile = (sessions) => {
@@ -46,16 +43,16 @@ const setSessionsFile = (sessions) => {
       console.log(err);
     }
   });
-}
+};
 
 // Retorna as sessões do arquivo
 const getSessionsFile = () => {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
-}
+};
 
 // Cria uma nova sessão
 const createSession = (id, description, webhooks) => {
-  console.log('Criando sessão: ' + id);
+  console.log('Criando sessão:', id);
   const client = new Client({
     restartOnAuthFail: true,
     puppeteer: {
@@ -79,7 +76,7 @@ const createSession = (id, description, webhooks) => {
   client.initialize();
 
   client.on('qr', (qr) => {
-    console.log('QR RECEBIDO', qr);
+    console.log('QR RECEBIDO:', qr);
     qrcode.toDataURL(qr, (err, url) => {
       io.emit('qr', { id: id, src: url });
       io.emit('message', { id: id, text: 'QR Code recebido, por favor, faça a leitura!' });
@@ -137,7 +134,7 @@ const createSession = (id, description, webhooks) => {
     });
     setSessionsFile(savedSessions);
   }
-}
+};
 
 // Inicializa as sessões salvas
 const init = (socket) => {
@@ -152,55 +149,16 @@ const init = (socket) => {
       socket.emit('init', savedSessions);
     }
   }
-}
+};
 
 // Inicializa o socket
 io.on('connection', (socket) => {
   init(socket);
 
   socket.on('create-session', (data) => {
-    console.log('Criando sessão: ' + data.id);
+    console.log('Criando sessão:', data.id);
     createSession(data.id, data.description, data.webhooks);
   });
-});
-
-// Rota para envio de mensagens
-app.post('/send-message', async (req, res) => {
-  const sender = req.body.sender;
-  const number = phoneNumberFormatter(req.body.number);
-  const message = req.body.message;
-
-  const client = sessions.find(sess => sess.id == sender)?.client;
-
-  if (!client) {
-    return res.status(422).json({
-      status: false,
-      message: `O remetente: ${sender} não foi encontrado!`
-    });
-  }
-
-  const isRegisteredNumber = await client.isRegisteredUser(number);
-
-  if (!isRegisteredNumber) {
-    return res.status(422).json({
-      status: false,
-      message: 'O número não está registrado'
-    });
-  }
-
-  client.sendMessage(number, message)
-    .then(response => {
-      res.status(200).json({
-        status: true,
-        response: response
-      });
-    })
-    .catch(err => {
-      res.status(500).json({
-        status: false,
-        response: err
-      });
-    });
 });
 
 // Rota para criar uma nova sessão
@@ -249,6 +207,45 @@ app.delete('/delete-session/:id', (req, res) => {
   });
 });
 
+// Rota para envio de mensagens
+app.post('/send-message', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const message = req.body.message;
+
+  const client = sessions.find(sess => sess.id == sender)?.client;
+
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente ${sender} não foi encontrado!`
+    });
+  }
+
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: 'O número não está registrado'
+    });
+  }
+
+  client.sendMessage(number, message)
+    .then(response => {
+      res.status(200).json({
+        status: true,
+        response: response
+      });
+    })
+    .catch(err => {
+      res.status(500).json({
+        status: false,
+        response: err
+      });
+    });
+});
+
 // Rota para enviar arquivo de mídia
 app.post('/send-media', async (req, res) => {
   const sender = req.body.sender;
@@ -261,7 +258,7 @@ app.post('/send-media', async (req, res) => {
   if (!client) {
     return res.status(422).json({
       status: false,
-      message: `O remetente: ${sender} não foi encontrado!`
+      message: `O remetente ${sender} não foi encontrado!`
     });
   }
 
