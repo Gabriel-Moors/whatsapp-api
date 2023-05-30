@@ -209,6 +209,36 @@ app.post('/create-session', async (req, res) => {
   });
 });
 
+// DELETAR SESSÃO
+app.delete('/delete-session/:sessionId', (req, res) => {
+  const sessionId = req.params.sessionId;
+
+  const sessionIndex = sessions.findIndex(sess => sess.id === sessionId);
+
+  if (sessionIndex === -1) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada',
+    });
+  }
+
+  const deletedSession = sessions.splice(sessionIndex, 1)[0];
+
+  const savedSessions = getSessionsFile();
+  const savedSessionIndex = savedSessions.findIndex(sess => sess.id === sessionId);
+  savedSessions.splice(savedSessionIndex, 1);
+  setSessionsFile(savedSessions);
+
+  deletedSession.client.destroy();
+
+  io.emit('remove-session', sessionId);
+
+  return res.status(200).json({
+    status: true,
+    message: 'Sessão deletada com sucesso',
+  });
+});
+
 // ATUALIZAR WEBHOOKS
 app.post('/update-webhooks', (req, res) => {
   const sessionId = req.body.sessionId;
