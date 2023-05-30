@@ -174,6 +174,69 @@ io.on('connection', function (socket) {
   });
 });
 
+// CRIAR SESSÃO
+app.post('/create-session', async (req, res) => {
+  const id = req.body.id;
+  const description = req.body.description;
+  const webhooks = req.body.webhooks;
+
+  if (!id || !description || !webhooks) {
+    return res.status(422).json({
+      status: false,
+      message: 'Os parâmetros id, description e webhooks são obrigatórios'
+    });
+  }
+
+  if (sessions.some(sess => sess.id === id)) {
+    return res.status(422).json({
+      status: false,
+      message: 'Já existe uma sessão com o mesmo ID'
+    });
+  }
+
+  if (sessions.length >= 5) {
+    return res.status(422).json({
+      status: false,
+      message: 'O número máximo de sessões foi atingido'
+    });
+  }
+
+  createSession(id, description, webhooks);
+
+  return res.status(200).json({
+    status: true,
+    message: 'Sessão criada com sucesso'
+  });
+});
+
+// ATUALIZAR WEBHOOKS
+app.post('/update-webhooks', (req, res) => {
+  const sessionId = req.body.sessionId;
+  const webhooks = req.body.webhooks;
+
+  const session = sessions.find(sess => sess.id === sessionId);
+
+  if (!session) {
+    return res.status(404).json({
+      status: false,
+      message: 'Sessão não encontrada',
+    });
+  }
+
+  session.webhooks = webhooks;
+
+  const savedSessions = getSessionsFile();
+  const sessionIndex = savedSessions.findIndex(sess => sess.id === sessionId);
+  savedSessions[sessionIndex].webhooks = webhooks;
+  setSessionsFile(savedSessions);
+
+  return res.status(200).json({
+    status: true,
+    message: 'Webhooks atualizados com sucesso',
+  });
+});
+
+// ENVIO DE MENSAGEM DE TEXTO
 app.post('/send-message', async (req, res) => {
   const sender = req.body.sender;
   const number = phoneNumberFormatter(req.body.number);
@@ -210,40 +273,6 @@ app.post('/send-message', async (req, res) => {
         response: err
       });
     });
-});
-
-app.post('/create-session', async (req, res) => {
-  const id = req.body.id;
-  const description = req.body.description;
-  const webhooks = req.body.webhooks;
-
-  if (!id || !description || !webhooks) {
-    return res.status(422).json({
-      status: false,
-      message: 'Os parâmetros id, description e webhooks são obrigatórios'
-    });
-  }
-
-  if (sessions.some(sess => sess.id === id)) {
-    return res.status(422).json({
-      status: false,
-      message: 'Já existe uma sessão com o mesmo ID'
-    });
-  }
-
-  if (sessions.length >= 5) {
-    return res.status(422).json({
-      status: false,
-      message: 'O número máximo de sessões foi atingido'
-    });
-  }
-
-  createSession(id, description, webhooks);
-
-  return res.status(200).json({
-    status: true,
-    message: 'Sessão criada com sucesso'
-  });
 });
 
 server.listen(port, function () {
