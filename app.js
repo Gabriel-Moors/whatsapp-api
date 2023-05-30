@@ -56,12 +56,6 @@ const getSessionsFile = function() {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
 };
 
-class Webhook {
-  constructor(url) {
-    this.url = url;
-  }
-}
-
 class Session {
   constructor(id, description) {
     this.id = id;
@@ -75,16 +69,27 @@ class Session {
     this.ready = ready;
   }
 
-  addWebhook(url) {
-    const webhook = new Webhook(url);
+  addWebhook(webhook) {
     this.webhooks.push(webhook);
+  }
+
+  removeWebhook(webhook) {
+    const index = this.webhooks.indexOf(webhook);
+    if (index !== -1) {
+      this.webhooks.splice(index, 1);
+    }
   }
 }
 
 const sessions = [];
 
-const createSession = function(id, description) {
+const createSession = function(id, description, webhooks) {
   console.log('Criando sessão: ' + id);
+  const session = new Session(id, description);
+  webhooks.forEach(webhook => {
+    session.addWebhook(webhook);
+  });
+
   const client = new Client({
     restartOnAuthFail: true,
     puppeteer: {
@@ -96,7 +101,7 @@ const createSession = function(id, description) {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--single-process', // <- esta opção não funciona no Windows
+        '--single-process',
         '--disable-gpu'
       ],
     },
@@ -123,17 +128,6 @@ const createSession = function(id, description) {
     const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
     savedSessions[sessionIndex].setReady(true);
     setSessionsFile(savedSessions);
-
-    const session = sessions.find(sess => sess.id === id);
-    session.webhooks.forEach(webhook => {
-      axios.post(webhook.url, { message: 'WhatsApp está pronto!' })
-        .then(response => {
-          console.log('Webhook response:', response.data);
-        })
-        .catch(error => {
-          console.error('Webhook error:', error);
-        });
-    });
   });
 
   client.on('authenticated', () => {
@@ -158,7 +152,6 @@ const createSession = function(id, description) {
     io.emit('remove-session', id);
   });
 
-  const session = new Session(id, description);
   session.client = client;
   sessions.push(session);
 
@@ -183,7 +176,7 @@ const init = function(socket) {
       socket.emit('init', savedSessions);
     } else {
       savedSessions.forEach((sess) => {
-        createSession(sess.id, sess.description);
+        createSession(sess.id, sess.description, sess.webhooks);
       });
     }
   }
@@ -196,48 +189,8 @@ io.on('connection', function(socket) {
 
   socket.on('create-session', function(data) {
     console.log('Criar sessão: ' + data.id);
-    createSession(data.id, data.description);
-    const session = sessions.find(sess => sess.id === data.id);
-    session.addWebhook(data.webhookUrl);
+    createSession(data.id, data.description, data.webhooks);
   });
-});
-
-app.post('/send-message', async (req, res) => {
-  const sender = req.body.sender;
-  const number = phoneNumberFormatter(req.body.number);
-  const message = req.body.message;
-
-  const client = sessions.find((sess) => sess.id === sender)?.client;
-
-  if (!client) {
-    return res.status(422).json({
-      status: false,
-      message: `O remetente: ${sender} não foi encontrado!`
-    });
-  }
-
-  const isRegisteredNumber = await client.isRegisteredUser(number);
-
-  if (!isRegisteredNumber) {
-    return res.status(422).json({
-      status: false,
-      message: 'O número não está registrado'
-    });
-  }
-
-  client.sendMessage(number, message)
-    .then((response) => {
-      res.status(200).json({
-        status: true,
-        response: response
-      });
-    })
-    .catch((err) => {
-      res.status(500).json({
-        status: false,
-        response: err
-      });
-    });
 });
 
 server.listen(port, function() {
