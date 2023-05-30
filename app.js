@@ -56,16 +56,28 @@ const getSessionsFile = function() {
   return JSON.parse(fs.readFileSync(SESSIONS_FILE));
 };
 
+class Webhook {
+  constructor(url) {
+    this.url = url;
+  }
+}
+
 class Session {
   constructor(id, description) {
     this.id = id;
     this.description = description;
     this.ready = false;
     this.client = null;
+    this.webhooks = [];
   }
 
   setReady(ready) {
     this.ready = ready;
+  }
+
+  addWebhook(url) {
+    const webhook = new Webhook(url);
+    this.webhooks.push(webhook);
   }
 }
 
@@ -111,6 +123,17 @@ const createSession = function(id, description) {
     const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
     savedSessions[sessionIndex].setReady(true);
     setSessionsFile(savedSessions);
+
+    const session = sessions.find(sess => sess.id === id);
+    session.webhooks.forEach(webhook => {
+      axios.post(webhook.url, { message: 'WhatsApp está pronto!' })
+        .then(response => {
+          console.log('Webhook response:', response.data);
+        })
+        .catch(error => {
+          console.error('Webhook error:', error);
+        });
+    });
   });
 
   client.on('authenticated', () => {
@@ -174,6 +197,8 @@ io.on('connection', function(socket) {
   socket.on('create-session', function(data) {
     console.log('Criar sessão: ' + data.id);
     createSession(data.id, data.description);
+    const session = sessions.find(sess => sess.id === data.id);
+    session.addWebhook(data.webhookUrl);
   });
 });
 
