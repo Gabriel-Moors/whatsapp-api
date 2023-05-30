@@ -7,90 +7,60 @@ const fs = require('fs');
 const { phoneNumberFormatter } = require('./helpers/formatter');
 const fileUpload = require('express-fileupload');
 const axios = require('axios');
-
 const port = process.env.PORT || 80;
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
 
+// Configurações do aplicativo Express
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(fileUpload({ debug: false }));
+app.use(express.urlencoded({
+  extended: true
+}));
+
+app.use(fileUpload({
+  debug: false
+}));
 
 // Rota principal
 app.get('/', (req, res) => {
-  res.sendFile('index.html', { root: __dirname });
+  res.sendFile('index.html', {
+    root: __dirname
+  });
 });
 
-// Rota para criar uma nova sessão
-app.post('/create-session', (req, res) => {
-  const { id, description, webhooks } = req.body;
-  console.log('Criar sessão: ' + id);
-  createSession(id, description, webhooks);
-  res.sendStatus(200);
-});
-
-// Arquivo de sessões
+// Gerenciamento de sessões
+const sessions = [];
 const SESSIONS_FILE = './whatsapp-sessions.json';
 
-// Cria o arquivo de sessões se não existir
 const createSessionsFileIfNotExists = function() {
   if (!fs.existsSync(SESSIONS_FILE)) {
     try {
       fs.writeFileSync(SESSIONS_FILE, JSON.stringify([]));
       console.log('Arquivo de sessões criado com sucesso.');
-    } catch (err) {
+    } catch(err) {
       console.log('Falha ao criar o arquivo de sessões: ', err);
     }
   }
-};
+}
 
-// Salva as sessões no arquivo
+createSessionsFileIfNotExists();
+
 const setSessionsFile = function(sessions) {
   fs.writeFile(SESSIONS_FILE, JSON.stringify(sessions), function(err) {
     if (err) {
       console.log(err);
     }
   });
-};
-
-// Obtém as sessões do arquivo
-const getSessionsFile = function() {
-  return JSON.parse(fs.readFileSync(SESSIONS_FILE));
-};
-
-// Classe de Sessão
-class Session {
-  constructor(id, description) {
-    this.id = id;
-    this.description = description;
-    this.ready = false;
-    this.client = null;
-    this.webhooks = [];
-  }
-
-  setReady(ready) {
-    this.ready = ready;
-  }
-
-  addWebhook(webhook) {
-    this.webhooks.push(webhook);
-  }
 }
 
-// Array de sessões
-const sessions = [];
+const getSessionsFile = function() {
+  return JSON.parse(fs.readFileSync(SESSIONS_FILE));
+}
 
-// Cria uma nova sessão
-const createSession = function(id, description, webhooks) {
+const createSession = async function(id, description) {
   console.log('Criando sessão: ' + id);
-
-  const session = new Session(id, description);
-  webhooks.forEach(webhook => {
-    session.addWebhook(webhook);
-  });
-
   const client = new Client({
     restartOnAuthFail: true,
     puppeteer: {
@@ -102,7 +72,7 @@ const createSession = function(id, description, webhooks) {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--single-process',
+        '--single-process', // <- este não funciona no Windows
         '--disable-gpu'
       ],
     },
@@ -113,95 +83,168 @@ const createSession = function(id, description, webhooks) {
 
   client.initialize();
 
-  // Evento de QR Code
+  const webhooks = []; // Lista de webhooks da sessão
+
+  // Função para gerar QR code e emitir evento para os webhooks
+  const generateQrCode = async (sessionId, qrData) => {
+    const qrCode = await qrcode.toDataURL(qrData);
+    io.to(sessionId).emit('qr', { id: sessionId, src: qrCode });
+    webhooks.forEach(webhook => {
+      axios.post(webhook, { qrCode: qrCode });
+    });
+  };
+
   client.on('qr', (qr) => {
     console.log('QR RECEBIDO', qr);
-    qrcode.toDataURL(qr, (err, url) => {
-      io.emit('qr', { id: id, src: url });
-      io.emit('message', { id: id, text: 'QR Code recebido, por favor, escaneie!' });
-    });
+    generateQrCode(id, qr);
   });
 
-  // Evento de WhatsApp pronto
   client.on('ready', () => {
-    io.emit('ready', { id: id });
-    io.emit('message', { id: id, text: 'WhatsApp está pronto!' });
+    io.to(id).emit('ready', { id: id });
+    io.to(id).emit('message', { id: id, text: 'O WhatsApp está pronto!' });
 
     const savedSessions = getSessionsFile();
-    const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
-    savedSessions[sessionIndex].setReady(true);
+    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
+    savedSessions[sessionIndex].ready = true;
     setSessionsFile(savedSessions);
   });
 
-  // Evento de autenticação
   client.on('authenticated', () => {
-    io.emit('authenticated', { id: id });
-    io.emit('message', { id: id, text: 'WhatsApp está autenticado!' });
+    io.to(id).emit('authenticated', { id: id });
+    io.to(id).emit('message', { id: id, text: 'O WhatsApp foi autenticado!' });
   });
 
-  // Evento de falha na autenticação
   client.on('auth_failure', function() {
-    io.emit('message', { id: id, text: 'Falha na autenticação, reiniciando...' });
+    io.to(id).emit('message', { id: id, text: 'Falha na autenticação, reiniciando...' });
   });
 
-  // Evento de desconexão
   client.on('disconnected', (reason) => {
-    io.emit('message', { id: id, text: 'WhatsApp está desconectado!' });
+    io.to(id).emit('message', { id: id, text: 'O WhatsApp foi desconectado!' });
     client.destroy();
     client.initialize();
 
+    // Remover da lista de sessões
     const savedSessions = getSessionsFile();
-    const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
+    const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
     savedSessions.splice(sessionIndex, 1);
     setSessionsFile(savedSessions);
 
-    io.emit('remove-session', id);
+    io.to(id).emit('remove-session', id);
   });
 
-  session.client = client;
-  sessions.push(session);
+  // Adicionar cliente às sessões
+  sessions.push({
+    id: id,
+    description: description,
+    client: client
+  });
 
+  // Adicionar sessão ao arquivo
   const savedSessions = getSessionsFile();
-  const sessionIndex = savedSessions.findIndex(sess => sess.id === id);
+  const sessionIndex = savedSessions.findIndex(sess => sess.id == id);
 
   if (sessionIndex === -1) {
-    savedSessions.push(session);
+    savedSessions.push({
+      id: id,
+      description: description,
+      ready: false,
+      webhooks: webhooks
+    });
     setSessionsFile(savedSessions);
   }
-};
 
-// Inicialização das sessões
+  return { id: id, qrCode: await client.getQRCode() }; // Retorna o ID da sessão e o QR code
+}
+
 const init = function(socket) {
   const savedSessions = getSessionsFile();
 
   if (savedSessions.length > 0) {
     if (socket) {
-      savedSessions.forEach((sess) => {
-        sess.setReady(false);
+      savedSessions.forEach((e, i, arr) => {
+        arr[i].ready = false;
       });
 
       socket.emit('init', savedSessions);
     } else {
-      savedSessions.forEach((sess) => {
-        createSession(sess.id, sess.description, sess.webhooks);
+      savedSessions.forEach(sess => {
+        createSession(sess.id, sess.description);
       });
     }
   }
-};
+}
 
-// Inicialização do socket
+init();
+
+// Socket IO
 io.on('connection', function(socket) {
   init(socket);
 
-  // Criação de sessão
-  socket.on('create-session', function(data) {
-    console.log('Criar sessão: ' + data.id);
-    createSession(data.id, data.description, data.webhooks);
+  socket.on('create-session', async function(data) {
+    const { id, description, webhooks } = data;
+    if (!id || !description) {
+      socket.emit('create-session-error', 'ID e descrição da sessão são obrigatórios.');
+      return;
+    }
+
+    if (webhooks && webhooks.length > 5) {
+      socket.emit('create-session-error', 'A sessão pode ter no máximo 5 webhooks.');
+      return;
+    }
+
+    const sessionExists = sessions.some(sess => sess.id === id);
+    if (sessionExists) {
+      socket.emit('create-session-error', 'Já existe uma sessão com o mesmo ID.');
+      return;
+    }
+
+    const session = await createSession(id, description);
+    if (webhooks) {
+      session.webhooks = webhooks;
+    }
+    socket.join(id);
+    socket.emit('create-session-success', session);
   });
 });
 
-// Inicialização do servidor
+// Enviar mensagem
+app.post('/send-message', async (req, res) => {
+  const sender = req.body.sender;
+  const number = phoneNumberFormatter(req.body.number);
+  const message = req.body.message;
+
+  const client = sessions.find(sess => sess.id === sender)?.client;
+
+  // Verificar se o remetente existe e está pronto
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `O remetente: ${sender} não foi encontrado!`
+    })
+  }
+
+  const isRegisteredNumber = await client.isRegisteredUser(number);
+
+  if (!isRegisteredNumber) {
+    return res.status(422).json({
+      status: false,
+      message: 'O número não está registrado'
+    });
+  }
+
+  client.sendMessage(number, message).then(response => {
+    res.status(200).json({
+      status: true,
+      response: response
+    });
+  }).catch(err => {
+    res.status(500).json({
+      status: false,
+      response: err
+    });
+  });
+});
+
 server.listen(port, function() {
-  createSessionsFileIfNotExists();
-  console.log('Aplicação rodando em *: ' + port);
+  console.log('Aplicativo sendo executado em *:' + port);
 });
