@@ -119,7 +119,8 @@ const createSession = function (id, description) {
   sessions.push({
     id: id,
     description: description,
-    client: client
+    client: client,
+    webhooks: []
   });
 
   const savedSessions = getSessionsFile();
@@ -130,6 +131,7 @@ const createSession = function (id, description) {
       id: id,
       description: description,
       ready: false,
+      webhooks: []
     });
     setSessionsFile(savedSessions);
   }
@@ -200,6 +202,30 @@ app.post('/send-message', async (req, res) => {
         response: err
       });
     });
+});
+
+app.post('/create-session', (req, res) => {
+  const id = req.body.id;
+  const description = req.body.description;
+
+  createSession(id, description);
+
+  const client = sessions.find(sess => sess.id === id)?.client;
+
+  if (!client) {
+    return res.status(422).json({
+      status: false,
+      message: `A sessão ${id} não foi criada corretamente.`
+    });
+  }
+
+  const qrCode = client.base64EncodedAuthInfo();
+
+  res.json({
+    status: true,
+    message: `Sessão ${id} criada com sucesso!`,
+    qrCode: qrCode
+  });
 });
 
 server.listen(port, function () {
