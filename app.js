@@ -288,45 +288,6 @@ app.post('/send-media', async (req, res) => {
     });
 });
 
-// Rota para obter informações de uma sessão
-app.get('/session/:id', (req, res) => {
-  const id = req.params.id;
-
-  const session = sessions.find(sess => sess.id == id);
-
-  if (!session) {
-    return res.status(422).json({
-      status: false,
-      message: 'A sessão não existe.'
-    });
-  }
-
-  return res.status(200).json({
-    status: true,
-    session: {
-      id: session.id,
-      description: session.description,
-      ready: session.client?.isConnected() || false,
-      webhooks: session.webhooks
-    }
-  });
-});
-
-// Rota para obter todas as sessões
-app.get('/sessions', (req, res) => {
-  const savedSessions = getSessionsFile();
-
-  return res.status(200).json({
-    status: true,
-    sessions: savedSessions.map(session => ({
-      id: session.id,
-      description: session.description,
-      ready: sessions.find(sess => sess.id == session.id)?.client?.isConnected() || false,
-      webhooks: session.webhooks
-    }))
-  });
-});
-
 // Inicia o servidor
 server.listen(port, function () {
   console.log('App está executando na porta ' + port);
