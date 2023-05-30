@@ -274,7 +274,7 @@ app.post('/send-media', async (req, res) => {
     });
   }
 
-  const media = MessageMedia.fromUrl(fileUrl);
+  const media = new MessageMedia(fileUrl);
 
   client.sendMessage(number, media, { caption: caption })
     .then(response => {
